@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from utils import (
+from models.utils import (
     round_filters,
     round_repeats,
     drop_connect,
@@ -112,8 +112,6 @@ class EfficientNet(nn.Module):
         assert len(blocks_args) > 0, 'block args must be greater than 0'
         self._global_params = global_params
         self._blocks_args = blocks_args
-        print('_blocks_args: ', self._blocks_args)
-        print('len block args: ', len(self._blocks_args))
 
         # Get static or dynamic convolution depending on image size
         Conv2d = get_same_padding_conv2d(image_size=global_params.image_size)

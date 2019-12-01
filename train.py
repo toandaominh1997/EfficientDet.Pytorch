@@ -122,3 +122,8 @@ def train():
         loss = loss_l + loss_c
         loss.backward()
         optimizer.step()
+
+        if idx % 10 == 0:
+            print('Loss: {}'.format(loss))
+    torch.save(net.state_dict(),'checkpoint.pth')
+train()

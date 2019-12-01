@@ -1,11 +1,13 @@
 import torch 
 import torch.nn as nn
-from efficientnet import EfficientNet
-from bifpn import BiFPN
-
+from torch.autograd import Variable
+from models.efficientnet import EfficientNet
+from models.bifpn import BiFPN
+from layers.functions import PriorBox
+from data import voc, coco
 class EfficientDet(nn.Module):
     def __init__(self,
-                num_class = 10,
+                num_class = 21,
                 levels = 3,
                 num_channels = 128,
                 model_name = 'efficientnet-b0'):
@@ -16,6 +18,7 @@ class EfficientDet(nn.Module):
         self.efficientnet = EfficientNet.from_pretrained(model_name)
         self.bifpn = BiFPN(num_channels = self.num_channels)
 
+        self.cfg = (coco, voc)[num_class == 21]
         self.priorbox = PriorBox(self.cfg)
         self.priors = Variable(self.priorbox.forward(), volatile=True)
         
@@ -30,19 +33,20 @@ class EfficientDet(nn.Module):
         for _ in range(self.levels):
             P3, P4, P5, P6, P7 = self.bifpn([P3, P4, P5, P6, P7])
         P = [P3, P4, P5, P6, P7]
+        
         features_class = [self.class_net(p, self.num_class) for p in P]
         features_class = torch.cat(features_class, axis=0)
         features_bbox = [self.regression_net(p) for p in P]
         features_bbox = torch.cat(features_bbox, axis=0)
         output = (
-                features_bbox.view(features_bbox.size(0), -1, 4),
-                features_class.view(features_class.size(0), -1, self.num_class),
+                features_bbox.view(inputs.size(0), -1, 4),
+                features_class.view(inputs.size(0), -1, self.num_class),
                 self.priors
             )
         return output
         
     @staticmethod
-    def class_net(features, num_class, num_anchor=9):
+    def class_net(features, num_class, num_anchor=5):
         features = nn.Sequential(
             nn.Conv2d(in_channels=features.size(1), out_channels=features.size(2), kernel_size = 3, stride=1),
             nn.Conv2d(in_channels=features.size(2), out_channels=num_anchor*num_class, kernel_size = 3, stride=1)
@@ -51,7 +55,7 @@ class EfficientDet(nn.Module):
         features = nn.Sigmoid()(features)
         return features 
     @staticmethod
-    def regression_net(features, num_anchor=9):
+    def regression_net(features, num_anchor=5):
         features = nn.Sequential(
             nn.Conv2d(in_channels=features.size(1), out_channels=features.size(2), kernel_size = 3, stride=1),
             nn.Conv2d(in_channels=features.size(2), out_channels=num_anchor*4, kernel_size = 3, stride=1)
