@@ -95,26 +95,26 @@ def train():
     net = EfficientDet(num_class=cfg['num_classes'])
 
     if args.cuda:
-        net = torch.nn.DataParallel(ssd_net)
+        net = torch.nn.DataParallel(net)
         cudnn.benchmark = True
 
-    if args.resume:
-        print('Resuming training, loading {}...'.format(args.resume))
-        ssd_net.load_weights(args.resume)
-    else:
-        vgg_weights = torch.load(args.save_folder + args.basenet)
-        print('Loading base network...')
-        ssd_net.vgg.load_state_dict(vgg_weights)
+    # if args.resume:
+    #     print('Resuming training, loading {}...'.format(args.resume))
+    #     ssd_net.load_weights(args.resume)
+    # else:
+    #     vgg_weights = torch.load(args.save_folder + args.basenet)
+    #     print('Loading base network...')
+    #     ssd_net.vgg.load_state_dict(vgg_weights)
 
     if args.cuda:
         net = net.cuda()
 
-    if not args.resume:
-        print('Initializing weights...')
-        # initialize newly added layers' weights with xavier method
-        ssd_net.extras.apply(weights_init)
-        ssd_net.loc.apply(weights_init)
-        ssd_net.conf.apply(weights_init)
+    # if not args.resume:
+    #     print('Initializing weights...')
+    #     # initialize newly added layers' weights with xavier method
+    #     ssd_net.extras.apply(weights_init)
+    #     ssd_net.loc.apply(weights_init)
+    #     ssd_net.conf.apply(weights_init)
 
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
                           weight_decay=args.weight_decay)
