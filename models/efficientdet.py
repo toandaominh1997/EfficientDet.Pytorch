@@ -35,11 +35,11 @@ class EfficientDet(nn.Module):
         features_bbox = [self.regression_net(p) for p in P]
         features_bbox = torch.cat(features_bbox, axis=0)
         output = (
-                features_bbox.view(loc.size(0), -1, 4),
-                features_class.view(conf.size(0), -1, self.num_class),
+                features_bbox.view(features_bbox.size(0), -1, 4),
+                features_class.view(features_class.size(0), -1, self.num_class),
                 self.priors
             )
-        print('class: {}, bbox: {}'.format(features_class.size(), features_bbox.size()))
+        return output
         
     @staticmethod
     def class_net(features, num_class, num_anchor=9):
