@@ -28,6 +28,8 @@ parser.add_argument('--dataset_root', default=VOC_ROOT,
                     help='Dataset root directory path')
 parser.add_argument('--basenet', default='vgg16_reducedfc.pth',
                     help='Pretrained base model')
+parser.add_argument('--num_epoch', default=500, type=int,
+                    help='Batch size for training')
 parser.add_argument('--batch_size', default=32, type=int,
                     help='Batch size for training')
 parser.add_argument('--resume', default=None, type=str,
@@ -109,15 +111,7 @@ def train():
     if args.cuda:
         net = net.cuda()
 
-    # if not args.resume:
-    #     print('Initializing weights...')
-    #     # initialize newly added layers' weights with xavier method
-    #     ssd_net.extras.apply(weights_init)
-    #     ssd_net.loc.apply(weights_init)
-    #     ssd_net.conf.apply(weights_init)
-
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=args.momentum,
-                          weight_decay=args.weight_decay)
+    optimizer = optim.AdamW(net.parameters(), lr=args.lr)
     criterion = MultiBoxLoss(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
                              False, args.cuda)
 
@@ -145,56 +139,42 @@ def train():
                                   num_workers=args.num_workers,
                                   shuffle=True, collate_fn=detection_collate,
                                   pin_memory=True)
-    # create batch iterator
-    batch_iterator = iter(data_loader)
-    for iteration in range(args.start_iter, cfg['max_iter']):
-        if args.visdom and iteration != 0 and (iteration % epoch_size == 0):
-            update_vis_plot(epoch, loc_loss, conf_loss, epoch_plot, None,
-                            'append', epoch_size)
-            # reset epoch loss counters
-            loc_loss = 0
-            conf_loss = 0
-            epoch += 1
+    
+    iteration = 0
+    for epoch in range(args.num_epoch):
+        for idx, (images, targets) in enumerate(data_loader):
+            if iteration in cfg['lr_steps']:
+                step_index += 1
+                adjust_learning_rate(optimizer, args.gamma, step_index)
 
-        if iteration in cfg['lr_steps']:
-            step_index += 1
-            adjust_learning_rate(optimizer, args.gamma, step_index)
+            if args.cuda:
+                images = Variable(images.cuda())
+                targets = [Variable(ann.cuda(), volatile=True) for ann in targets]
+            else:
+                images = Variable(images)
+                targets = [Variable(ann, volatile=True) for ann in targets]
+            # forward
+            t0 = time.time()
+            out = net(images)
+            # backprop
+            optimizer.zero_grad()
+            loss_l, loss_c = criterion(out, targets)
+            loss = loss_l + loss_c
+            loss.backward()
+            optimizer.step()
+            t1 = time.time()
+            loc_loss += loss_l
+            conf_loss += loss_c
 
-        # load train data
-        images, targets = next(batch_iterator)
-
-        if args.cuda:
-            images = Variable(images.cuda())
-            targets = [Variable(ann.cuda(), volatile=True) for ann in targets]
-        else:
-            images = Variable(images)
-            targets = [Variable(ann, volatile=True) for ann in targets]
-        # forward
-        t0 = time.time()
-        out = net(images)
-        # backprop
-        optimizer.zero_grad()
-        loss_l, loss_c = criterion(out, targets)
-        loss = loss_l + loss_c
-        loss.backward()
-        optimizer.step()
-        t1 = time.time()
-        loc_loss += loss_l
-        conf_loss += loss_c
-
-        if iteration % 10 == 0:
-            print('timer: %.4f sec.' % (t1 - t0))
-            print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss), end=' ')
-
-        if args.visdom:
-            update_vis_plot(iteration, loss_l, loss_c,
-                            iter_plot, epoch_plot, 'append')
-
-        if iteration != 0 and iteration % 5000 == 0:
-            print('Saving state, iter:', iteration)
-            torch.save(ssd_net.state_dict(), 'weights/Effi' +
-                       repr(iteration) + '.pth')
-    torch.save(ssd_net.state_dict(),
+            if iteration % 10 == 0:
+                print('timer: %.4f sec.' % (t1 - t0))
+                print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss), end=' ')
+            if iteration != 0 and iteration % 5000 == 0:
+                print('Saving state, iter:', iteration)
+                torch.save(net.state_dict(), 'weights/Effi' +
+                        repr(idx) + '.pth')  
+            iteration+=1
+    torch.save(net.state_dict(),
                args.save_folder + '' + args.dataset + '.pth')
 
 
