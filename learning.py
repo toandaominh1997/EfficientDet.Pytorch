@@ -1,10 +1,11 @@
-mport torch
+import torch
 import os
 import numpy as np
 import pandas as pd 
 import time 
 from torchvision.utils import make_grid
 from utils import TensorboardWriter, MetricTracker
+from torch.autograd import Variable
 class Learning(object):
     def __init__(self,
             model,
@@ -22,12 +23,16 @@ class Learning(object):
             checkpoint_dir,
             resume_path):
         self.device, device_ids = self._prepare_device(device)
-        self.model = model.to(self.device)
+        # self.model = model.to(self.device)
+        
         self.start_epoch = 1
         if resume_path is not None:
             self._resume_checkpoint(resume_path)
         if len(device_ids) > 1:
-            self.model = torch.nn.DataParallel(model, device_ids=device_ids)
+            # self.model = torch.nn.DataParallel(model, device_ids=device_ids)
+            self.model = torch.nn.DataParallel(model)
+            # cudnn.benchmark = True
+        self.model = model.cuda()
         self.criterion = criterion
         self.metric_ftns = metric_ftns
         self.optimizer = optimizer
@@ -44,7 +49,8 @@ class Learning(object):
         self.train_metrics = MetricTracker('loss', writer = self.writer)
         self.valid_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer = self.writer)
         
-    def train(self, train_dataloader, valid_dataloader):
+    def train(self, train_dataloader):
+        score = 0
         for epoch in range(self.start_epoch, self.num_epoch+1):
             print("{} epoch: \t start training....".format(epoch))
             start = time.time()
@@ -54,19 +60,19 @@ class Learning(object):
             for key, value in train_result.items():
                 print('    {:15s}: {}'.format(str(key), value))
 
-            if (epoch+1) % self.validation_frequency!=0:
-                print("skip validation....")
-                continue
-            print('{} epoch: \t start validation....'.format(epoch))
-            start = time.time()
-            valid_result = self._valid_epoch(epoch, valid_dataloader)
-            valid_result.update({'time': time.time() - start})
-            score = -1
-            for key, value in valid_result.items():
-                if 'score' in key:
-                    score = value 
-                print('   {:15s}: {}'.format(str(key), value))
+            # if (epoch+1) % self.validation_frequency!=0:
+            #     print("skip validation....")
+            #     continue
+            # print('{} epoch: \t start validation....'.format(epoch))
+            # start = time.time()
+            # valid_result = self._valid_epoch(epoch, valid_dataloader)
+            # valid_result.update({'time': time.time() - start})
             
+            # for key, value in valid_result.items():
+            #     if 'score' in key:
+            #         score = value 
+            #     print('   {:15s}: {}'.format(str(key), value))
+            score+=0.001
             self.post_processing(score, epoch)
             if epoch - self.best_epoch > self.early_stopping:
                 print('WARNING: EARLY STOPPING')
@@ -76,7 +82,8 @@ class Learning(object):
         self.optimizer.zero_grad()
         self.train_metrics.reset()
         for idx, (data, target) in enumerate(data_loader):
-            data, target = data.to(self.device), target.to(self.device)
+            data = Variable(data.cuda())
+            target = [ann.to(self.device) for ann in target]
             output = self.model(data)
             loss = self.criterion(output, target)
             loss.backward()

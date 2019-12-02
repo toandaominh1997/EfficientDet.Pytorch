@@ -1,0 +1,97 @@
+SEED: 42
+DEVICE: [0, 1]
+# DATASET
+DATA_TRAIN: VOC
+
+GRADIENT_ACCUMULATION_STEPS: 1
+GRADIENT_CLIPPING: 1
+NUM_EPOCH: 500
+EARLY_STOPPING: 50
+VALIDATION_FREQUENCY: 2
+TENSORBOARD: True
+CHECKPOINT_DIR: ./saved
+RESUME_PATH:
+
+TRAIN_DATASET:
+    PY: datasets
+    CLASS: spoofDataset
+    ARGS:
+        root_dir: ./
+        phase: train
+
+VALID_DATASET:
+    PY: datasets
+    CLASS: spoofDataset
+    ARGS:
+        root_dir: ./
+        phase: valid
+
+TEST_DATASET:
+    PY: datasets.dataset
+    CLASS: spoofDataset
+    ARGS:
+        root_dir: ./data
+        phase: valid
+
+TRAIN_DATALOADER:
+    PY: torch.utils.data
+    CLASS: DataLoader
+    ARGS:
+        batch_size: 8
+        shuffle: True
+        num_workers: 8
+        pin_memory: True
+
+VALID_DATALOADER:
+    PY: torch.utils.data
+    CLASS: DataLoader
+    ARGS:
+        batch_size: 8
+        shuffle: False
+        num_workers: 8
+        pin_memory: True
+
+TEST_DATALOADER:
+    PY: torch.utils.data
+    CLASS: DataLoader
+    ARGS:
+        batch_size: 8
+        shuffle: False
+        num_workers: 8
+
+MODEL:
+  PY: models
+  CLASS: EfficientDet
+  ARGS:
+    num_class: 21
+    levels: 3
+    num_channels: 128
+    model_name: efficientnet-b0
+
+CRITERION:
+  PY: layers.modules
+  CLASS: MultiBoxLoss
+  ARGS:
+    num_classes: 21
+    overlap_thresh: 0.5
+    prior_for_matching: True
+    bkg_label: 0
+    neg_mining: True
+    neg_pos: 3
+    neg_overlap: 0.5
+    encode_target: False
+    use_gpu: True
+
+OPTIMIZER:
+  PY: torch.optim
+  CLASS: AdamW
+  ARGS:
+    lr: 0.0001
+    weight_decay: 0.000005
+
+SCHEDULER:
+  PY: torch.optim.lr_scheduler
+  CLASS: ReduceLROnPlateau
+  ARGS:
+    factor: 0.15
+    patience: 2

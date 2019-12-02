@@ -16,6 +16,7 @@ class EfficientDet(nn.Module):
         self.levels = levels
         self.num_channels = num_channels
         self.efficientnet = EfficientNet.from_pretrained(model_name)
+        print('efficientnet: ', self.efficientnet)
         self.bifpn = BiFPN(num_channels = self.num_channels)
 
         self.cfg = (coco, voc)[num_class == 21]
