@@ -75,13 +75,15 @@ class MultiBoxLoss(nn.Module):
         if self.use_gpu:
             loc_t = loc_t.cuda()
             conf_t = conf_t.cuda()
+        
+        print('loc_t: {}, conf_t: {}'.format(loc_t.is_cuda, conf_t.is_cuda))
         # wrap targets
         loc_t = Variable(loc_t, requires_grad=False)
-        conf_t = Variable(conf_t, requires_grad=False)
-        
+        conf_t = Variable(conf_t, requires_grad=False)      
         pos = conf_t > 0
-        num_pos = pos.sum(dim=1, keepdim=True)
 
+        print('pos: ', pos.is_cuda)
+        num_pos = pos.sum(dim=1, keepdim=True)
         # Localization Loss (Smooth L1)
         # Shape: [batch,num_priors,4]
 
@@ -117,4 +119,5 @@ class MultiBoxLoss(nn.Module):
         loss_c = loss_c.double()
         loss_l /= N
         loss_c /= N
+        
         return loss_l, loss_c

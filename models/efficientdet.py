@@ -46,7 +46,7 @@ class EfficientDet(nn.Module):
         return output
         
     @staticmethod
-    def class_net(features, num_class, num_anchor=5):
+    def class_net(features, num_class, num_anchor=3):
         features = nn.Sequential(
             nn.Conv2d(in_channels=features.size(1), out_channels=features.size(2), kernel_size = 2, stride=1),
             nn.Conv2d(in_channels=features.size(2), out_channels=num_anchor*num_class, kernel_size = 2, stride=1)
@@ -56,7 +56,7 @@ class EfficientDet(nn.Module):
         return features 
     
     @staticmethod
-    def regression_net(features, num_anchor=5):
+    def regression_net(features, num_anchor=3):
         features = nn.Sequential(
             nn.Conv2d(in_channels=features.size(1), out_channels=features.size(2), kernel_size = 2, stride=1),
             nn.Conv2d(in_channels=features.size(2), out_channels=num_anchor*4, kernel_size = 2, stride=1)

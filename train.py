@@ -96,9 +96,9 @@ def train():
     # ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'])
     net = EfficientDet(num_class=cfg['num_classes'])
 
-    if args.cuda:
-        net = torch.nn.DataParallel(net)
-        cudnn.benchmark = True
+    # if args.cuda:
+    #     net = torch.nn.DataParallel(net)
+    #     cudnn.benchmark = True
 
     # if args.resume:
     #     print('Resuming training, loading {}...'.format(args.resume))
