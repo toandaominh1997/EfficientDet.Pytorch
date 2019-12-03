@@ -3,15 +3,15 @@ A [PyTorch](http://pytorch.org/) implementation of [EfficientDet](https://arxiv.
 Google Research, Brain Team.  The official and original: comming soon.
 
 
-<img align="right" src= "./docs/arch.png"/>
+<img src= "./docs/arch.png"/>
 
 ### Table of Contents
 - <a href='#installation'>Installation</a>
 - <a href='#datasets'>Datasets</a>
-- <a href='#training-ssd'>Train</a>
+- <a href='#training-efficientdet'>Train</a>
 - <a href='#evaluation'>Evaluate</a>
 - <a href='#performance'>Performance</a>
-- <a href='#demos'>Demos</a>
+- <a href='#demo'>Demo</a>
 - <a href='#todo'>Future Work</a>
 - <a href='#references'>Reference</a>
 
@@ -73,22 +73,13 @@ To evaluate a trained network:
 
 **Comming soon** 
 
-
-<img align="left" src= "https://github.com/amdegroot/ssd.pytorch/blob/master/doc/detection_examples.png">
-
 ## Performance
+<img src= "./docs/compare.png"/>
+<img src= "./docs/performance.png"/>
 
-<img align="right" src= "./docs/compare.png"/>
+## Demo
 
-<img align="right" src= "./docs/performance.png"/>
-
-
-##### mAP
-
-
-
-##### FPS
-**2xGTX 2080Ti
+<img src= "https://github.com/amdegroot/ssd.pytorch/blob/master/doc/detection_examples.png">
 
 ## TODO
 We have accumulated the following to-do list, which we hope to complete in the near future
