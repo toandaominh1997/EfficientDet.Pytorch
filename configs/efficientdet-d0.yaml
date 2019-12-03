@@ -80,7 +80,7 @@ CRITERION:
     neg_pos: 3
     neg_overlap: 0.5
     encode_target: False
-    use_gpu: True
+    use_gpu: False
 
 OPTIMIZER:
   PY: torch.optim

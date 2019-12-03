@@ -15,7 +15,7 @@ voc = {
     'num_classes': 21,
     'lr_steps': (80000, 100000, 120000),
     'max_iter': 120000,
-    'feature_maps': [64, 32, 16, 8, 4],
+    'feature_maps': [40, 80, 112, 192, 320],
     'min_dim': 512,
     'steps': [8, 16, 32, 64, 128],
     'min_sizes': [30, 60, 111, 162, 213],

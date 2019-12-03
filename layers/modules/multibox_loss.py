@@ -76,13 +76,11 @@ class MultiBoxLoss(nn.Module):
             loc_t = loc_t.cuda()
             conf_t = conf_t.cuda()
         
-        print('loc_t: {}, conf_t: {}'.format(loc_t.is_cuda, conf_t.is_cuda))
+
         # wrap targets
         loc_t = Variable(loc_t, requires_grad=False)
         conf_t = Variable(conf_t, requires_grad=False)      
         pos = conf_t > 0
-
-        print('pos: ', pos.is_cuda)
         num_pos = pos.sum(dim=1, keepdim=True)
         # Localization Loss (Smooth L1)
         # Shape: [batch,num_priors,4]
@@ -91,7 +89,7 @@ class MultiBoxLoss(nn.Module):
         loc_p = loc_data[pos_idx].view(-1, 4)
         loc_t = loc_t[pos_idx].view(-1, 4)
         loss_l = F.smooth_l1_loss(loc_p, loc_t, size_average=False)
-
+        
         # Compute max conf across batch for hard negative mining
         batch_conf = conf_data.view(-1, self.num_classes)
         loss_c = log_sum_exp(batch_conf) - batch_conf.gather(1, conf_t.view(-1, 1))
