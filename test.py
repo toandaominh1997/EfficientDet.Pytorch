@@ -1,10 +1,9 @@
+import torch 
+from models import EfficientDet
 
-
-def sum():
-    a = 10
-    b = 20
-    for name in dir():
-        if not name.startswith('_'):
-            del locals()[name]
-
-sum()
+if __name__ == '__main__':
+    inputs = torch.randn(4, 3, 512, 512)
+    model = EfficientDet(levels=3)
+    output = model(inputs)
+    for p in output:
+        print(p.size())

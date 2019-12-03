@@ -5,7 +5,7 @@ from models.efficientnet import EfficientNet
 from models.bifpn import BiFPN
 from layers.functions import PriorBox
 from data import voc, coco
-
+from .bifpn_v2 import BIFPN
 
 
 class EfficientDet(nn.Module):
@@ -24,20 +24,6 @@ class EfficientDet(nn.Module):
         self.priorbox = PriorBox(self.cfg)
         self.priors = Variable(self.priorbox.forward(), volatile=True)
         self.num_anchor = 9
-
-        self.input_image = 512
-        self.Conv = [
-            nn.Conv2d(in_channels=40,
-                      out_channels=self.num_channels, kernel_size=3, padding=1, stride=1),
-            nn.Conv2d(in_channels=80,
-                      out_channels=self.num_channels, kernel_size=3, padding=1),
-            nn.Conv2d(in_channels=112,
-                      out_channels=self.num_channels, kernel_size=3, padding=1),
-            nn.Conv2d(in_channels=192,
-                      out_channels=self.num_channels, kernel_size=3, padding=1),
-            nn.Conv2d(in_channels=320,
-                      out_channels=self.num_channels, kernel_size=3, padding=1),
-        ]
         self.class_module = list()
         self.regress_module = list()
         for _ in range(3, 8):
@@ -56,17 +42,14 @@ class EfficientDet(nn.Module):
                         in_channels=64, out_channels=self.num_anchor * 4, kernel_size=2, stride=1)
                 )
             )
+            self.BIFPN = BIFPN(in_channels=[40, 80, 112, 192, 320],
+                                out_channels=self.num_channels,
+                                num_outs=5)
 
     def forward(self, inputs):
 
         P1, P2, P3, P4, P5, P6, P7 = self.efficientnet(inputs)
-        P3 = self.Conv[0](P3)
-        P4 = self.Conv[1](P4)
-        P5 = self.Conv[2](P5)
-        P6 = self.Conv[3](P6)
-        P7 = self.Conv[4](P7)
-        for _ in range(self.levels):
-            P3, P4, P5, P6, P7 = self.bifpn([P3, P4, P5, P6, P7])
+        P3, P4, P5, P6, P7 = self.BIFPN([P3, P4, P5, P6, P7])
         feature_classes = []
         feature_bboxes = []
         for i, p in enumerate([P3, P4, P5, P6, P7]):
@@ -89,7 +72,4 @@ class EfficientDet(nn.Module):
         )
         return output
 
-if __name__ == '__main__':
-    inputs = torch.randn(4, 3, 512, 512)
-    model = EfficientDet(levels=3)
-    output = model(inputs)
+
