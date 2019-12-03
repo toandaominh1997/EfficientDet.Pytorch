@@ -23,7 +23,7 @@ Google Research, Brain Team.  The official and original: comming soon.
 ## Installation
 - Install [PyTorch](http://pytorch.org/) by selecting your environment on the website and running the appropriate command.
 - Clone this repository.
-  * Note: We currently only support Python 3+.
+  * Note: We currently only support Python 3.6+.
 - Then download the dataset by following the [instructions](#datasets) below.
 - Note: For training, we currently support [VOC](http://host.robots.ox.ac.uk/pascal/VOC/) and [COCO](http://mscoco.org/), and aim to add [ImageNet](http://www.image-net.org/) support soon.
 
@@ -71,11 +71,7 @@ python train.py
 ## Evaluation
 To evaluate a trained network:
 
-```Shell
-python eval.py
-```
-
-You can specify the parameters listed in the `eval.py` file by flagging them or manually changing them.  
+**Comming soon** 
 
 
 <img align="left" src= "https://github.com/amdegroot/ssd.pytorch/blob/master/doc/detection_examples.png">
@@ -97,9 +93,13 @@ You can specify the parameters listed in the `eval.py` file by flagging them or 
 ## TODO
 We have accumulated the following to-do list, which we hope to complete in the near future
 - Still to come:
-  * [x] Support for the MS COCO dataset
-  * [ ] Support for SSD512 training and testing
-  * [ ] Support for training on custom datasets
+  * [x] EfficientDet
+  * [x] GPU-Parallel
+  * [ ] Weighted Feature Fusion
+  * [ ] Pretrained model
+  * [ ] Demo
+  * [ ] Model zoo 
+  
 
 ## Authors
 
@@ -108,6 +108,6 @@ We have accumulated the following to-do list, which we hope to complete in the n
 ***Note:*** Unfortunately, this is just a hobby of ours and not a full-time job, so we'll do our best to keep things up to date, but no guarantees.  That being said, thanks to everyone for your continued help and feedback as it is really appreciated. We will try to address everything as soon as possible.
 
 ## References
-- tanmingxing, rpang, qvl, et al. "EfficientDet: Scalable and Efficient Object Detection." [EfficientDet]((http://arxiv.org/abs/1512.02325)).
+- tanmingxing, rpang, qvl, et al. "EfficientDet: Scalable and Efficient Object Detection." [EfficientDet]((https://arxiv.org/abs/1911.09070)).
 - A list of other great EfficientDet ports that were sources of inspiration (especially the Chainer repo):
   * [EfficientNet](https://github.com/lukemelas/EfficientNet-PyTorch), [SSD.Pytorch](https://github.com/amdegroot/ssd.pytorch)
