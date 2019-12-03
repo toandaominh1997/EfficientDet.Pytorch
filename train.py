@@ -89,64 +89,27 @@ def train():
                                transform=SSDAugmentation(cfg['min_dim'],
                                                          MEANS))
 
-    if args.visdom:
-        import visdom
-        viz = visdom.Visdom()
-
-    # ssd_net = build_ssd('train', cfg['min_dim'], cfg['num_classes'])
     net = EfficientDet(num_class=cfg['num_classes'])
 
-    # if args.cuda:
-    #     net = torch.nn.DataParallel(net)
-    #     cudnn.benchmark = True
 
-    # if args.resume:
-    #     print('Resuming training, loading {}...'.format(args.resume))
-    #     ssd_net.load_weights(args.resume)
-    # else:
-    #     vgg_weights = torch.load(args.save_folder + args.basenet)
-    #     print('Loading base network...')
-    #     ssd_net.vgg.load_state_dict(vgg_weights)
 
     if args.cuda:
         net = net.cuda()
-
+    # if args.cuda:
+    #     net = torch.nn.DataParallel(net)
+    #     cudnn.benchmark = True
     optimizer = optim.AdamW(net.parameters(), lr=args.lr)
     criterion = MultiBoxLoss(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
                              False, args.cuda)
-
-    net.train()
-    # loss counters
-    loc_loss = 0
-    conf_loss = 0
-    epoch = 0
-    print('Loading the dataset...')
-
-    epoch_size = len(dataset) // args.batch_size
-    print('Training SSD on:', dataset.name)
-    print('Using the specified args:')
-    print(args)
-
-    step_index = 0
-
-    if args.visdom:
-        vis_title = 'SSD.PyTorch on ' + dataset.name
-        vis_legend = ['Loc Loss', 'Conf Loss', 'Total Loss']
-        iter_plot = create_vis_plot('Iteration', 'Loss', vis_title, vis_legend)
-        epoch_plot = create_vis_plot('Epoch', 'Loss', vis_title, vis_legend)
-
     data_loader = data.DataLoader(dataset, args.batch_size,
                                   num_workers=args.num_workers,
                                   shuffle=True, collate_fn=detection_collate,
                                   pin_memory=True)
-    
+    net.train()
     iteration = 0
     for epoch in range(args.num_epoch):
+        print('\n Start epoch: {} ...'.format(epoch))
         for idx, (images, targets) in enumerate(data_loader):
-            if iteration in cfg['lr_steps']:
-                step_index += 1
-                adjust_learning_rate(optimizer, args.gamma, step_index)
-
             if args.cuda:
                 images = Variable(images.cuda())
                 targets = [Variable(ann.cuda(), volatile=True) for ann in targets]
@@ -156,77 +119,22 @@ def train():
             # forward
             t0 = time.time()
             out = net(images)
-            # backprop
             optimizer.zero_grad()
             loss_l, loss_c = criterion(out, targets)
             loss = loss_l + loss_c
             loss.backward()
             optimizer.step()
             t1 = time.time()
-            # loc_loss += loss_l
-            # conf_loss += loss_c
             if iteration % 10 == 0:
                 print('timer: %.4f sec.' % (t1 - t0))
                 print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss), end=' ')
             if iteration != 0 and iteration % 5000 == 0:
-                print('Saving state, iter:', iteration)
+                print('Saving state, iteration:', iteration)
                 torch.save(net.state_dict(), 'weights/Effi' +
                         repr(idx) + '.pth')  
             iteration+=1
     torch.save(net.state_dict(),
                args.save_folder + '' + args.dataset + '.pth')
-
-
-def adjust_learning_rate(optimizer, gamma, step):
-    """Sets the learning rate to the initial LR decayed by 10 at every
-        specified step
-    # Adapted from PyTorch Imagenet example:
-    # https://github.com/pytorch/examples/blob/master/imagenet/main.py
-    """
-    lr = args.lr * (gamma ** (step))
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-
-
-def xavier(param):
-    init.xavier_uniform(param)
-
-
-def weights_init(m):
-    if isinstance(m, nn.Conv2d):
-        xavier(m.weight.data)
-        m.bias.data.zero_()
-
-
-def create_vis_plot(_xlabel, _ylabel, _title, _legend):
-    return viz.line(
-        X=torch.zeros((1,)).cpu(),
-        Y=torch.zeros((1, 3)).cpu(),
-        opts=dict(
-            xlabel=_xlabel,
-            ylabel=_ylabel,
-            title=_title,
-            legend=_legend
-        )
-    )
-
-
-def update_vis_plot(iteration, loc, conf, window1, window2, update_type,
-                    epoch_size=1):
-    viz.line(
-        X=torch.ones((1, 3)).cpu() * iteration,
-        Y=torch.Tensor([loc, conf, loc + conf]).unsqueeze(0).cpu() / epoch_size,
-        win=window1,
-        update=update_type
-    )
-    # initialize epoch plot on first iteration
-    if iteration == 0:
-        viz.line(
-            X=torch.zeros((1, 3)).cpu(),
-            Y=torch.Tensor([loc, conf, loc + conf]).unsqueeze(0).cpu(),
-            win=window2,
-            update=True
-        )
 
 
 if __name__ == '__main__':
