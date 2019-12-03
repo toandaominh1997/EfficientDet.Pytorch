@@ -163,9 +163,8 @@ def train():
             loss.backward()
             optimizer.step()
             t1 = time.time()
-            loc_loss += loss_l
-            conf_loss += loss_c
-
+            # loc_loss += loss_l
+            # conf_loss += loss_c
             if iteration % 10 == 0:
                 print('timer: %.4f sec.' % (t1 - t0))
                 print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss), end=' ')

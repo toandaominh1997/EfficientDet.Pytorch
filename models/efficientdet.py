@@ -19,7 +19,7 @@ class EfficientDet(nn.Module):
         self.levels = levels
         self.num_channels = num_channels
         self.efficientnet = EfficientNet.from_pretrained(model_name)
-        self.bifpn = BiFPN(num_channels=self.num_channels)
+
         self.cfg = (coco, voc)[num_class == 21]
         self.priorbox = PriorBox(self.cfg)
         self.priors = Variable(self.priorbox.forward(), volatile=True)
@@ -45,6 +45,7 @@ class EfficientDet(nn.Module):
             self.BIFPN = BIFPN(in_channels=[40, 80, 112, 192, 320],
                                 out_channels=self.num_channels,
                                 num_outs=5)
+            self.sigmoid = nn.Sigmoid()
 
     def forward(self, inputs):
 
@@ -55,12 +56,12 @@ class EfficientDet(nn.Module):
         for i, p in enumerate([P3, P4, P5, P6, P7]):
             feature_class = self.class_module[i](p)
             feature_class = feature_class.view(-1, self.num_class)
-            feature_class = nn.Sigmoid()(feature_class)
+            feature_class = self.sigmoid(feature_class)
             feature_classes.append(feature_class)
 
             feature_bbox = self.regress_module[i](p)
             feature_bbox = feature_bbox.view(-1, 4)
-            feature_bbox = nn.Sigmoid()(feature_bbox)
+            feature_bbox = self.sigmoid(feature_bbox)
             feature_bboxes.append(feature_bbox)
         feature_classes = torch.cat(feature_classes, axis=0)
         feature_bboxes = torch.cat(feature_bboxes, axis=0)
