@@ -1,6 +1,5 @@
 from data import *
 from utils.augmentations import SSDAugmentation
-from layers.modules import MultiBoxLoss
 from models.efficientdet import EfficientDet
 import os
 import sys
@@ -14,6 +13,8 @@ import torch.nn.init as init
 import torch.utils.data as data
 import numpy as np
 import argparse
+
+from models.losses import FocalLoss
 
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
@@ -88,53 +89,32 @@ def train():
         dataset = VOCDetection(root=args.dataset_root,
                                transform=SSDAugmentation(cfg['min_dim'],
                                                          MEANS))
-
-    net = EfficientDet(num_class=cfg['num_classes'])
-
-
-
-    if args.cuda:
-        net = net.cuda()
-    # if args.cuda:
-    #     net = torch.nn.DataParallel(net)
-    #     cudnn.benchmark = True
-    optimizer = optim.AdamW(net.parameters(), lr=args.lr)
-    criterion = MultiBoxLoss(cfg['num_classes'], 0.5, True, 0, True, 3, 0.5,
-                             False, args.cuda)
+    
     data_loader = data.DataLoader(dataset, args.batch_size,
                                   num_workers=args.num_workers,
                                   shuffle=True, collate_fn=detection_collate,
                                   pin_memory=True)
-    net.train()
+    model = EfficientDet(num_class=21)
+
+
+
+    if args.cuda:
+        model = model.cuda()
+    
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+    criterion = FocalLoss()
+    
+    model.train()
     iteration = 0
     for epoch in range(args.num_epoch):
-        print('\n Start epoch: {} ...'.format(epoch))
+        print('Start epoch: {} ...'.format(epoch))
         for idx, (images, targets) in enumerate(data_loader):
-            if args.cuda:
-                images = Variable(images.cuda())
-                targets = [Variable(ann.cuda(), volatile=True) for ann in targets]
-            else:
-                images = Variable(images)
-                targets = [Variable(ann, volatile=True) for ann in targets]
-            # forward
-            t0 = time.time()
-            out = net(images)
+            images = images.cuda()
+            classification, regression, anchors = model(images)
+            loss = criterion(classification, regression, anchors, targets)
             optimizer.zero_grad()
-            loss_l, loss_c = criterion(out, targets)
-            loss = loss_l + loss_c
             loss.backward()
             optimizer.step()
-            t1 = time.time()
-            if iteration % 10 == 0:
-                print('timer: %.4f sec.' % (t1 - t0))
-                print('iter ' + repr(iteration) + ' || Loss: %.4f ||' % (loss), end=' ')
-            if iteration != 0 and iteration % 5000 == 0:
-                print('Saving state, iteration:', iteration)
-                torch.save(net.state_dict(), 'weights/Effi' +
-                        repr(idx) + '.pth')  
-            iteration+=1
-    torch.save(net.state_dict(),
-               args.save_folder + '' + args.dataset + '.pth')
 
 
 if __name__ == '__main__':
