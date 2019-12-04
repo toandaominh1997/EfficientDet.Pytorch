@@ -112,12 +112,6 @@ class VOCDetection(data.Dataset):
                 self.ids.append((rootpath, line.strip()))
 
     def __getitem__(self, index):
-        return self.pull_item(index)
-
-    def __len__(self):
-        return len(self.ids)
-
-    def pull_item(self, index):
         img_id = self.ids[index]
 
         target = ET.parse(self._annopath % img_id).getroot()
@@ -131,7 +125,9 @@ class VOCDetection(data.Dataset):
         if self.transform is not None:
             sample = self.transform(sample)
         return sample
-        # return torch.from_numpy(img), target, height, width
+
+    def __len__(self):
+        return len(self.ids)
 
     def pull_image(self, index):
         '''Returns the original image object at index in PIL form
