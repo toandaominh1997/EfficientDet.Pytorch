@@ -1,4 +1,5 @@
 from data import *
+from utils.augmentations import SSDAugmentation
 from models.efficientdet import EfficientDet
 import os
 import sys
@@ -72,33 +73,47 @@ if not os.path.exists(args.save_folder):
 
 
 def train():
-    dataset = VOCDetection(root=args.dataset_root, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
-
-    # sampler = AspectRatioBasedSampler(dataset, batch_size=2, drop_last=False)
-    data_loader = data.DataLoader(dataset, batch_size=2, shuffle=True, num_workers=4, collate_fn=collater)
-
+    dataset = VOCDetection(root=args.dataset_root,
+                               transform=SSDAugmentation(512,
+                                                         MEANS))
+    data_loader = data.DataLoader(dataset, args.batch_size,
+                                  num_workers=0,
+                                  shuffle=True, collate_fn=detection_collate,
+                                  pin_memory=False)
     model = EfficientDet(num_classes=21)
 
 
 
-    if args.cuda:
-        model = model.cuda()
+    model = model.cuda()
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     criterion = FocalLoss()
     
     model.train()
     iteration = 0
+    
     for epoch in range(args.num_epoch):
         print('Start epoch: {} ...'.format(epoch))
-        for idx, (images, targets) in enumerate(data_loader):
-            images = images.cuda()
+        total_loss = []
+        for idx, sample in enumerate(data_loader):
+            images = sample['img'].cuda()
             classification, regression, anchors = model(images)
-            loss = criterion(classification, regression, anchors, targets)
+            classification_loss, regression_loss = criterion(classification, regression, anchors, sample['annot'])
+            classification_loss = classification_loss.mean()
+            regression_loss = regression_loss.mean()
+
+            loss = classification_loss + regression_loss
+            if bool(loss == 0):
+                continue
             optimizer.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
+            total_loss.append(loss.item())
 
+            if(iteration%100==0):
+                print('Epoch/Iteration: {}/{}, classification: {}, regression: {}, totol_loss: {}'.format(epoch, iteration, classification_loss.item(), regression_loss.item(), np.mean(total_loss)))
+            iteration+=1
 
 if __name__ == '__main__':
     train()

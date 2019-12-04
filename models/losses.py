@@ -3,8 +3,8 @@ import torch
 import torch.nn as nn
 
 def calc_iou(a, b):
-    area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
 
+    area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
     iw = torch.min(torch.unsqueeze(a[:, 2], dim=1), b[:, 2]) - torch.max(torch.unsqueeze(a[:, 0], 1), b[:, 0])
     ih = torch.min(torch.unsqueeze(a[:, 3], dim=1), b[:, 3]) - torch.max(torch.unsqueeze(a[:, 1], 1), b[:, 1])
 
@@ -121,7 +121,7 @@ class FocalLoss(nn.Module):
                 targets = targets/torch.Tensor([[0.1, 0.1, 0.2, 0.2]]).cuda()
 
 
-                negative_indices = 1 - positive_indices
+                negative_indices = ~positive_indices
 
                 regression_diff = torch.abs(targets - regression[positive_indices, :])
 
@@ -135,5 +135,3 @@ class FocalLoss(nn.Module):
                 regression_losses.append(torch.tensor(0).float().cuda())
 
         return torch.stack(classification_losses).mean(dim=0, keepdim=True), torch.stack(regression_losses).mean(dim=0, keepdim=True)
-
-    

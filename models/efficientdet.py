@@ -21,10 +21,8 @@ class EfficientDet(nn.Module):
         self.classificationModel = ClassificationModel(256, num_classes=num_classes)
         self.anchors = Anchors()
     def forward(self, inputs):
-
         features = self.efficientnet(inputs)
-        features = self.BIFPN([features[3:]])
-
+        features = self.BIFPN(features[2:])
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
         classification = torch.cat([self.classificationModel(feature) for feature in features], dim=1)
         anchors = self.anchors(inputs)

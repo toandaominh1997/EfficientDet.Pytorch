@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import types
 from numpy import random
-
+import skimage
 
 def intersect(box_a, box_b):
     max_xy = np.minimum(box_a[:, 2:], box_b[2:])
@@ -396,22 +396,70 @@ class PhotometricDistort(object):
         im, boxes, labels = distort(im, boxes, labels)
         return self.rand_light_noise(im, boxes, labels)
 
+class Resizer(object):
+    """Convert ndarrays in sample to Tensors."""
 
+    def __call__(self, sample, side=512):
+        image, annots = sample['img'], sample['annot']
+
+        rows, cols, cns = image.shape
+        
+        scale = float(side)/float(max(rows, cols))
+        # resize the image with the computed scale
+        image = skimage.transform.resize(image, (int(round(rows*scale)), int(round((cols*scale)))))
+        rows, cols, cns = image.shape
+
+        pad_w = side-rows
+        pad_h = side-cols
+        new_image = np.zeros((rows + pad_w, cols + pad_h, cns)).astype(np.float32)
+        new_image[:rows, :cols, :] = image.astype(np.float32)
+        annots[:, :4] *= scale
+        return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': scale}
+
+class Augmenter(object):
+    """Convert ndarrays in sample to Tensors."""
+
+    def __call__(self, sample, flip_x=0.5):
+
+        if np.random.rand() < flip_x:
+            image, annots = sample['img'], sample['annot']
+            image = image[:, ::-1, :]
+
+            rows, cols, channels = image.shape
+
+            x1 = annots[:, 0].copy()
+            x2 = annots[:, 2].copy()
+            
+            x_tmp = x1.copy()
+
+            annots[:, 0] = cols - x2
+            annots[:, 2] = cols - x_tmp
+
+            sample = {'img': image, 'annot': annots}
+
+        return sample
+
+
+class Normalizer(object):
+
+    def __init__(self):
+        self.mean = np.array([[[0.485, 0.456, 0.406]]])
+        self.std = np.array([[[0.229, 0.224, 0.225]]])
+
+    def __call__(self, sample):
+
+        image, annots = sample['img'], sample['annot']
+
+        return {'img':((image.astype(np.float32)-self.mean)/self.std), 'annot': annots}
 class SSDAugmentation(object):
     def __init__(self, size=320, mean=(104, 117, 123)):
         self.mean = mean
         self.size = size
-        self.augment = Compose([
-            ConvertFromInts(),
-            ToAbsoluteCoords(),
-            PhotometricDistort(),
-            Expand(self.mean),
-            RandomSampleCrop(),
-            RandomMirror(),
-            ToPercentCoords(),
-            Resize(self.size),
-            SubtractMeans(self.mean)
+        self.augment = transforms.Compose([
+            Normalizer(),
+            Augmenter(),
+            Resizer()
         ])
 
-    def __call__(self, img, boxes, labels):
-        return self.augment(img, boxes, labels)
+    def __call__(self, sample):
+        return self.augment(sample)
