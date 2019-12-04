@@ -1,5 +1,4 @@
 from data import *
-from utils.augmentations import SSDAugmentation
 from models.efficientdet import EfficientDet
 import os
 import sys
@@ -13,8 +12,10 @@ import torch.nn.init as init
 import torch.utils.data as data
 import numpy as np
 import argparse
+from torchvision import transforms
 
 from models.losses import FocalLoss
+from datasets.augmentation import *
 
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
@@ -71,30 +72,13 @@ if not os.path.exists(args.save_folder):
 
 
 def train():
-    if args.dataset == 'COCO':
-        if args.dataset_root == VOC_ROOT:
-            if not os.path.exists(COCO_ROOT):
-                parser.error('Must specify dataset_root if specifying dataset')
-            print("WARNING: Using default COCO dataset_root because " +
-                  "--dataset_root was not specified.")
-            args.dataset_root = COCO_ROOT
-        cfg = coco
-        dataset = COCODetection(root=args.dataset_root,
-                                transform=SSDAugmentation(cfg['min_dim'],
-                                                          MEANS))
-    elif args.dataset == 'VOC':
-        if args.dataset_root == COCO_ROOT:
-            parser.error('Must specify dataset if specifying dataset_root')
-        cfg = voc
-        dataset = VOCDetection(root=args.dataset_root,
-                               transform=SSDAugmentation(cfg['min_dim'],
-                                                         MEANS))
+    dataset = VOCDetection(root=args.dataset_root, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
     
     data_loader = data.DataLoader(dataset, args.batch_size,
                                   num_workers=args.num_workers,
                                   shuffle=True, collate_fn=detection_collate,
                                   pin_memory=True)
-    model = EfficientDet(num_class=21)
+    model = EfficientDet(num_classes=21)
 
 
 
