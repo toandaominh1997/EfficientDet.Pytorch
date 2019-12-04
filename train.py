@@ -73,11 +73,10 @@ if not os.path.exists(args.save_folder):
 
 def train():
     dataset = VOCDetection(root=args.dataset_root, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
-    
-    data_loader = data.DataLoader(dataset, args.batch_size,
-                                  num_workers=args.num_workers,
-                                  shuffle=True, collate_fn=detection_collate,
-                                  pin_memory=True)
+
+    sampler = AspectRatioBasedSampler(dataset, batch_size=2, drop_last=False)
+	dataloader = data.DataLoader(dataset, batch_size=2, shuffle=True, num_workers=4, collate_fn=collater)
+
     model = EfficientDet(num_classes=21)
 
 
