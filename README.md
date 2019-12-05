@@ -71,7 +71,7 @@ python train.py
 ## Evaluation
 To evaluate a trained network:
 
-## Results on the validation set
+## Results on the validation set VOC 2012
 
 
 | Models | mAP| params | FLOPs |
