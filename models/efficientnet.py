@@ -41,7 +41,6 @@ class MBConvBlock(nn.Module):
         if self._block_args.expand_ratio != 1:
             self._expand_conv = Conv2d(in_channels=inp, out_channels=oup, kernel_size=1, bias=False)
             self._bn0 = nn.BatchNorm2d(num_features=oup, momentum=self._bn_mom, eps=self._bn_eps)
-
         # Depthwise convolution phase
         k = self._block_args.kernel_size
         s = self._block_args.stride
@@ -73,6 +72,7 @@ class MBConvBlock(nn.Module):
         x = inputs
         if self._block_args.expand_ratio != 1:
             x = self._swish(self._bn0(self._expand_conv(inputs)))
+        
         x = self._swish(self._bn1(self._depthwise_conv(x)))
 
         # Squeeze and Excitation
@@ -164,33 +164,24 @@ class EfficientNet(nn.Module):
 
     def extract_features(self, inputs):
         """ Returns output of the final convolution layer """
-        P = []
         # Stem
         x = self._swish(self._bn0(self._conv_stem(inputs)))
-        
-        drop_connect_rate = self._global_params.drop_connect_rate
-        idx = 0
-        for block_args in self._blocks_args:
+
+        P = []
+        index = 0 
+        num_repeat = 0
+         # Blocks
+        for idx, block in enumerate(self._blocks):
+            drop_connect_rate = self._global_params.drop_connect_rate
             if drop_connect_rate:
                 drop_connect_rate *= float(idx) / len(self._blocks)
-            # Update block input and output filters based on depth multiplier.
-            block_args = block_args._replace(
-                input_filters=round_filters(block_args.input_filters, self._global_params),
-                output_filters=round_filters(block_args.output_filters, self._global_params),
-                num_repeat=round_repeats(block_args.num_repeat, self._global_params)
-            )
-
-            # The first block needs to take care of stride and filter size increase.
-            x = MBConvBlock(block_args, self._global_params)(x, drop_connect_rate = drop_connect_rate)
-            idx+=1
-            if block_args.num_repeat > 1:
-                block_args = block_args._replace(input_filters=block_args.output_filters, stride=1)
-            for _ in range(block_args.num_repeat - 1):
-                if drop_connect_rate:
-                    drop_connect_rate *= float(idx) / len(self._blocks)
-                x = MBConvBlock(block_args, self._global_params)(x, drop_connect_rate = drop_connect_rate)
-                idx+=1
-            P.append(x)
+            x = block(x, drop_connect_rate=drop_connect_rate)
+            num_repeat +=1
+            if num_repeat == self._blocks_args[index].num_repeat:
+                num_repeat = 0
+                index+=1
+                P.append(x)
+        print('P len: ', len(P))
         return P
 
     def forward(self, inputs):
