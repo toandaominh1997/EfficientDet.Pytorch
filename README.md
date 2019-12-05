@@ -86,6 +86,8 @@ We have accumulated the following to-do list, which we hope to complete in the n
 - Still to come:
   * [x] EfficientDet
   * [x] GPU-Parallel
+  * [x] NMS
+  * [ ] Soft-NMS
   * [ ] Weighted Feature Fusion
   * [ ] Pretrained model
   * [ ] Demo
