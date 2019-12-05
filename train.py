@@ -114,6 +114,7 @@ def train():
             if(iteration%100==0):
                 print('Epoch/Iteration: {}/{}, classification: {}, regression: {}, totol_loss: {}'.format(epoch, iteration, classification_loss.item(), regression_loss.item(), np.mean(total_loss)))
             iteration+=1
+        torch.save(model.state_dict(), './weights/checkpoint_{}.pth'.format(epoch))
 
 if __name__ == '__main__':
     train()

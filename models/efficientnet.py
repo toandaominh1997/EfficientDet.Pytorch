@@ -181,7 +181,6 @@ class EfficientNet(nn.Module):
                 num_repeat = 0
                 index+=1
                 P.append(x)
-        print('P len: ', len(P))
         return P
 
     def forward(self, inputs):
