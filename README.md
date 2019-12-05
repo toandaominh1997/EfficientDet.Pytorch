@@ -71,7 +71,20 @@ python train.py
 ## Evaluation
 To evaluate a trained network:
 
-**Comming soon** 
+## Results on the validation set
+
+
+| Models | mAP| params | FLOPs |
+| ------ | ------ | ------ | ------ |
+| **EfficientDet-D0** | **training** | **training** | **training** |
+| **EfficientDet-D1** | comming soon | comming soon | comming soon |
+| **EfficientDet-D2** | comming soon | comming soon | comming soon |
+| **EfficientDet-D3** | comming soon | comming soon | comming soon |
+| **EfficientDet-D4** | comming soon | comming soon | comming soon |
+| **EfficientDet-D5+AA** | comming soon | comming soon | comming soon |
+| **EfficientDet-D6+AA** | comming soon | comming soon | comming soon |
+| **EfficientDet-D7+AA** | comming soon | comming soon | comming soon |
+
 
 ## Performance
 <img src= "./docs/compare.png"/>
@@ -102,5 +115,9 @@ We have accumulated the following to-do list, which we hope to complete in the n
 
 ## References
 - tanmingxing, rpang, qvl, et al. "EfficientDet: Scalable and Efficient Object Detection." [EfficientDet]((https://arxiv.org/abs/1911.09070)).
-- A list of other great EfficientDet ports that were sources of inspiration (especially the Chainer repo):
-  * [EfficientNet](https://github.com/lukemelas/EfficientNet-PyTorch), [SSD.Pytorch](https://github.com/amdegroot/ssd.pytorch)
+- A list of other great EfficientDet ports that were sources of inspiration:
+  * [EfficientNet](https://github.com/lukemelas/EfficientNet-PyTorch)
+  * [SSD.Pytorch](https://github.com/amdegroot/ssd.pytorch)
+  * [RetinaNet.Pytorch](https://github.com/yhenon/pytorch-retinanet)
+  * [NMS.Torchvision](https://pytorch.org/docs/stable/torchvision/ops.html)
+  
