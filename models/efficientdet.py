@@ -26,6 +26,7 @@ class EfficientDet(nn.Module):
         self.clipBoxes = ClipBoxes()
          
     def forward(self, inputs):
+        print('inputs: ', inputs)
         features = self.efficientnet(inputs)
         features = self.BIFPN(features[2:])
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
@@ -39,22 +40,12 @@ class EfficientDet(nn.Module):
             scores = torch.max(classification, dim=2, keepdim=True)[0]
             scores_over_thresh = (scores>0.05)[0, :, 0]
             if scores_over_thresh.sum() == 0:
+                print('No boxes to NMS')
                 # no boxes to NMS, just return
                 return [torch.zeros(0), torch.zeros(0), torch.zeros(0, 4)]
             classification = classification[:, scores_over_thresh, :]
             transformed_anchors = transformed_anchors[:, scores_over_thresh, :]
             scores = scores[:, scores_over_thresh, :]
-
-            anchors_nms_idx = []
-            for i in range(transformed_anchors.size(0)):
-                anchors_nms_idx.append(nms(transformed_anchors[i], scores[i].view(-1), iou_threshold=0.5))
-
-            nms_scores = []
-            nms_class = []
-            for i in range(classification.size(0)):
-                _score, _class = classification[i, anchors_nms_idx[i], :].max(dim=1)
-                nms_scores.append(_score)
-                nms_class.append(_class)
-            return [nms_scores, nms_class]
-
-
+            anchors_nms_idx = nms(transformed_anchors[0, :, :], scores[0, :, 0], iou_threshold = 0.5)
+            nms_scores, nms_class = classification[0, anchors_nms_idx, :].max(dim=1)
+            return [nms_scores, nms_class, transformed_anchors[0, anchors_nms_idx, :]]

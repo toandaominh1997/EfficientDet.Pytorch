@@ -42,7 +42,7 @@ class Detect(object):
             Normalizer(),
             Resizer()
         ])
-        self.model = EfficientDet(num_classes=num_class)
+        self.model = EfficientDet(num_classes=num_class, is_training=False)
         self.model = self.model.to(self.device)
         if(self.weights is not None):
             print('Load pretrained Model')
@@ -53,14 +53,17 @@ class Detect(object):
 
     def process(self, file_name):
         img = cv2.imread(file_name)
+        cv2.imwrite('kaka.png', img)
         img = self.transform(img)
         img = img.to(self.device)
         img = img.unsqueeze(0).permute(0, 3, 1, 2)
-        output = self.model(img)
-        return output
-
+        scores, classification, transformed_anchors = self.model(img)
+        print('scores: ', scores)
+        scores = scores.detach().cpu().numpy()
+        idxs = np.where(scores>0.1)
+        return idxs
 
 if __name__=='__main__':
-    detect = Detect(weights = './weights/checkpoint_50.pth')
-    output = detect.process('./docs/arch.png')
+    detect = Detect(weights = './weights/checkpoint_87.pth')
+    output = detect.process('/root/data/VOCdevkit/VOC2007/JPEGImages/001234.jpg')
     print('output: ', output)
