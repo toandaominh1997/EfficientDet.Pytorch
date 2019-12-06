@@ -25,9 +25,14 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
         list_transforms.extend([
             albu.CenterCrop(p=0.2, height=height, width=width)
         ])
+    if(phase == 'show'):
+        return albu.Compose(list_transforms)
+
     list_transforms.extend([
         ToTensor()
     ])
+    if(phase=='test'):
+        return albu.Compose(list_transforms)
     return albu.Compose(list_transforms, bbox_params=albu.BboxParams(format='pascal_voc', min_area=min_area, 
                                                min_visibility=min_visibility, label_fields=['category_id']))
 
