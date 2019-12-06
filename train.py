@@ -16,10 +16,8 @@ import argparse
 from torchvision import transforms
 
 from models.losses import FocalLoss
-from datasets.augmentation import *
 
-def str2bool(v):
-    return v.lower() in ("yes", "true", "t", "1")
+from datasets import VOCDetection, get_augumentation, detection_collate
 
 
 parser = argparse.ArgumentParser(
@@ -27,10 +25,8 @@ parser = argparse.ArgumentParser(
 train_set = parser.add_mutually_exclusive_group()
 parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO'],
                     type=str, help='VOC or COCO')
-parser.add_argument('--dataset_root', default=VOC_ROOT,
+parser.add_argument('--dataset_root', default='/root/data/VOCdevkit/',
                     help='Dataset root directory path')
-parser.add_argument('--basenet', default='vgg16_reducedfc.pth',
-                    help='Pretrained base model')
 parser.add_argument('--num_epoch', default=500, type=int,
                     help='Batch size for training')
 parser.add_argument('--batch_size', default=32, type=int,
@@ -41,7 +37,7 @@ parser.add_argument('--start_iter', default=0, type=int,
                     help='Resume training at this iter')
 parser.add_argument('--num_workers', default=4, type=int,
                     help='Number of workers used in dataloading')
-parser.add_argument('--cuda', default=True, type=str2bool,
+parser.add_argument('--cuda', default=True, type=bool,
                     help='Use CUDA to train model')
 parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float,
                     help='initial learning rate')
@@ -51,8 +47,6 @@ parser.add_argument('--weight_decay', default=5e-4, type=float,
                     help='Weight decay for SGD')
 parser.add_argument('--gamma', default=0.1, type=float,
                     help='Gamma update for SGD')
-parser.add_argument('--visdom', default=False, type=str2bool,
-                    help='Use visdom for loss visualization')
 parser.add_argument('--save_folder', default='weights/',
                     help='Directory for saving checkpoint models')
 args = parser.parse_args()
@@ -73,13 +67,13 @@ if not os.path.exists(args.save_folder):
 
 
 def train():
-    dataset = VOCDetection(root=args.dataset_root,
-                               transform=SSDAugmentation(512,
-                                                         MEANS))
-    data_loader = data.DataLoader(dataset, args.batch_size,
-                                  num_workers=0,
+    train_dataset = VOCDetection(root = args.dataset_root,
+                        image_sets=[('2007', 'trainval')],
+                        transform= get_augumentation(phase='train'))
+    train_dataloader = data.DataLoader(train_dataset, args.batch_size,
+                                  num_workers=args.num_workers,
                                   shuffle=True, collate_fn=detection_collate,
-                                  pin_memory=False)
+                                  pin_memory=True)
     model = EfficientDet(num_classes=21)
 
 
@@ -88,17 +82,17 @@ def train():
     
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     criterion = FocalLoss()
-    
     model.train()
     iteration = 0
     
     for epoch in range(args.num_epoch):
         print('Start epoch: {} ...'.format(epoch))
         total_loss = []
-        for idx, sample in enumerate(data_loader):
-            images = sample['img'].cuda()
+        for idx, (images, annotations) in enumerate(train_dataloader):
+            images = images.cuda()
+            annotations = annotations.cuda()
             classification, regression, anchors = model(images)
-            classification_loss, regression_loss = criterion(classification, regression, anchors, sample['annot'])
+            classification_loss, regression_loss = criterion(classification, regression, anchors, annotations)
             classification_loss = classification_loss.mean()
             regression_loss = regression_loss.mean()
 
