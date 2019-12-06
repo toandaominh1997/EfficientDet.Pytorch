@@ -105,10 +105,12 @@ We have accumulated the following to-do list, which we hope to complete in the n
   * [x] GPU-Parallel
   * [x] NMS
   * [ ] Soft-NMS
-  * [ ] Weighted Feature Fusion
   * [ ] Pretrained model
-  * [ ] Demo
-  * [ ] Model zoo 
+  * [x] Demo
+  * [ ] Model zoo
+  * [ ] TorchScript
+  * [ ] Mobile
+  * [ ] C++ Onnx
   
 
 ## Authors
