@@ -77,7 +77,7 @@ Output:
 <img src= "./docs/output.png">
 
 
-## Results on the validation set VOC 2012
+## Results on the validation set VOC 2007 + 2012
 
 
 | Models | mAP| params | FLOPs |
