@@ -61,12 +61,13 @@ sh data/scripts/VOC2012.sh # <directory>
 
 ```Shell
 python train.py
-``
+```
 
 ## Evaluation
 To evaluate a trained network:
 ## Demo
-```
+
+```Shell
 python demo.py 
 ```
 
