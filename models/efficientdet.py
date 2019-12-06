@@ -52,9 +52,10 @@ class EfficientDet(nn.Module):
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, inputs)
             scores = torch.max(classification, dim=2, keepdim=True)[0]
-            scores_over_thresh = torch.topk(scores, k=3, dim=1)[1][0, :, 0]
+            # scores_over_thresh = torch.topk(scores, k=3, dim=1)[1][0, :, 0]
 
-            # scores_over_thresh = (scores>0.05)[0, :, 0]
+            scores_over_thresh = (scores>0.2)[0, :, 0]
+
             if scores_over_thresh.sum() == 0:
                 print('No boxes to NMS')
                 # no boxes to NMS, just return

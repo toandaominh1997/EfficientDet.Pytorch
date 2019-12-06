@@ -37,6 +37,8 @@ parser.add_argument('--start_iter', default=0, type=int,
                     help='Resume training at this iter')
 parser.add_argument('--num_workers', default=12, type=int,
                     help='Number of workers used in dataloading')
+parser.add_argument('--num_class', default=21, type=int,
+                    help='Number of class used in model')
 parser.add_argument('--cuda', default=True, type=bool,
                     help='Use CUDA to train model')
 parser.add_argument('--lr', '--learning-rate', default=1e-5, type=float,
@@ -65,6 +67,12 @@ else:
 if not os.path.exists(args.save_folder):
     os.mkdir(args.save_folder)
 
+def get_state_dict(model):
+    if type(model) == torch.nn.DataParallel:
+        state_dict = model.module.state_dict()
+    else:
+        state_dict = model.state_dict()
+    return state_dict
 
 def train():
     train_dataset = VOCDetection(root = args.dataset_root,
@@ -74,16 +82,16 @@ def train():
                                   num_workers=args.num_workers,
                                   shuffle=True, collate_fn=detection_collate,
                                   pin_memory=True)
-    model = EfficientDet(num_classes=21)
-
-
-
-    model = model.cuda()
-    model = torch.nn.DataParallel(model, device_ids=[0, 1])
-    
+    model = EfficientDet(num_classes=args.num_class)
+    if(torch.cuda.is_available()):
+        model = torch.nn.DataParallel(model, device_ids=[0, 1])
+        model = model.cuda()
+    if(args.resume is not None):
+        state = torch.load(args.resume, map_location=lambda storage, loc: storage)
+        state_dict = state['state_dict']
+        num_class = state['num_class']
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
-
     criterion = FocalLoss()
     model.train()
     iteration = 0
@@ -112,10 +120,21 @@ def train():
             if(iteration%100==0):
                 print('Epoch/Iteration: {}/{}, classification: {}, regression: {}, totol_loss: {}'.format(epoch, iteration, classification_loss.item(), regression_loss.item(), np.mean(total_loss)))
             iteration+=1
-        scheduler.step(np.mean(total_loss))	
-        torch.save(model.state_dict(), './weights/checkpoint_{}.pth'.format(epoch))
+        scheduler.step(np.mean(total_loss))
+        arch = type(model).__name__
+        state = {
+            'arch': arch,
+            'num_class': args.num_class,
+            'state_dict': get_state_dict(model)
+        }
+        torch.save(state, './weights/checkpoint_{}.pth'.format(epoch))
     model.eval()
-    torch.save(model.state_dict(), './weights/final_weight.pth')
+    state = {
+        'arch': arch,
+        'num_class': args.num_class,
+        'state_dict': get_state_dict(model)
+    }
+    torch.save(state, './weights/FinalWeights.pth')
 
 if __name__ == '__main__':
     train()
