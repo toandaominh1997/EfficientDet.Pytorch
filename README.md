@@ -30,6 +30,15 @@ Google Research, Brain Team.  The official and original: comming soon.
 ## Datasets
 To make things easy, we provide bash scripts to handle the dataset downloads and setup for you.  We also provide simple dataset loaders that inherit `torch.utils.data.Dataset`, making them fully compatible with the `torchvision.datasets` [API](http://pytorch.org/docs/torchvision/datasets.html).
 
+### VOC Dataset
+PASCAL VOC: Visual Object Classes
+
+##### Download VOC2007 + VOC2012 trainval & test
+```Shell
+# specify a directory for dataset to be downloaded into, else default is ~/data/
+sh data/scripts/VOC2007.sh
+sh data/scripts/VOC2012.sh
+```
 
 ### COCO
 Microsoft COCO: Common Objects in Context
@@ -39,21 +48,7 @@ Microsoft COCO: Common Objects in Context
 # specify a directory for dataset to be downloaded into, else default is ~/data/
 sh data/scripts/COCO2014.sh
 ```
-
-### VOC Dataset
-PASCAL VOC: Visual Object Classes
-
-##### Download VOC2007 trainval & test
-```Shell
-# specify a directory for dataset to be downloaded into, else default is ~/data/
-sh data/scripts/VOC2007.sh # <directory>
-```
-
-##### Download VOC2012 trainval
-```Shell
-# specify a directory for dataset to be downloaded into, else default is ~/data/
-sh data/scripts/VOC2012.sh # <directory>
-```
+**Note**: Read dataset COCO will support soon.
 
 ## Training EfficientDet
 
@@ -62,6 +57,12 @@ sh data/scripts/VOC2012.sh # <directory>
 ```Shell
 python train.py
 ```
+
+  - With VOC Dataset:
+  ```Shell
+  python train.py --dataset_root /root/data/VOCdevkit/ # Example
+  ```
+  - With COCO Dataset: Support soon
 
 ## Evaluation
 To evaluate a trained network:
