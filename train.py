@@ -35,11 +35,11 @@ parser.add_argument('--resume', default=None, type=str,
                     help='Checkpoint state_dict file to resume training from')
 parser.add_argument('--start_iter', default=0, type=int,
                     help='Resume training at this iter')
-parser.add_argument('--num_workers', default=4, type=int,
+parser.add_argument('--num_workers', default=12, type=int,
                     help='Number of workers used in dataloading')
 parser.add_argument('--cuda', default=True, type=bool,
                     help='Use CUDA to train model')
-parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float,
+parser.add_argument('--lr', '--learning-rate', default=1e-5, type=float,
                     help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float,
                     help='Momentum value for optim')
@@ -79,8 +79,11 @@ def train():
 
 
     model = model.cuda()
+    model = torch.nn.DataParallel(model, device_ids=[0, 1])
     
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
+
     criterion = FocalLoss()
     model.train()
     iteration = 0
@@ -98,6 +101,7 @@ def train():
 
             loss = classification_loss + regression_loss
             if bool(loss == 0):
+                print('loss equal zero(0)')
                 continue
             optimizer.zero_grad()
             loss.backward()
@@ -108,7 +112,10 @@ def train():
             if(iteration%100==0):
                 print('Epoch/Iteration: {}/{}, classification: {}, regression: {}, totol_loss: {}'.format(epoch, iteration, classification_loss.item(), regression_loss.item(), np.mean(total_loss)))
             iteration+=1
+        scheduler.step(np.mean(total_loss))	
         torch.save(model.state_dict(), './weights/checkpoint_{}.pth'.format(epoch))
+    model.eval()
+    torch.save(model.state_dict(), './weights/final_weight.pth')
 
 if __name__ == '__main__':
     train()
