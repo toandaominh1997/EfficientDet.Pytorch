@@ -26,7 +26,6 @@ class EfficientDet(nn.Module):
         self.clipBoxes = ClipBoxes()
          
     def forward(self, inputs):
-        print('inputs: ', inputs)
         features = self.efficientnet(inputs)
         features = self.BIFPN(features[2:])
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
