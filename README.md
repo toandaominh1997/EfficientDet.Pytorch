@@ -61,15 +61,20 @@ sh data/scripts/VOC2012.sh # <directory>
 
 ```Shell
 python train.py
-```
-
-- Note:
-  * For training, an NVIDIA GPU is strongly recommended for speed.
-  * For instructions on Visdom usage/installation, see the <a href='#installation'>Installation</a> section.
-  * You can pick-up training from a checkpoint by specifying the path as one of the training parameters (again, see `train.py` for options)
+``
 
 ## Evaluation
 To evaluate a trained network:
+## Demo
+```
+python demo.py 
+```
+
+Output: 
+
+
+<img src= "./docs/output.png">
+
 
 ## Results on the validation set VOC 2012
 
@@ -90,9 +95,7 @@ To evaluate a trained network:
 <img src= "./docs/compare.png"/>
 <img src= "./docs/performance.png"/>
 
-## Demo
 
-<img src= "https://github.com/amdegroot/ssd.pytorch/blob/master/doc/detection_examples.png">
 
 ## TODO
 We have accumulated the following to-do list, which we hope to complete in the near future

@@ -5,7 +5,7 @@ from models import EfficientDet
 from torchvision import transforms
 import numpy as np 
 import skimage
-from datasets import get_augumentation
+from datasets import get_augumentation, VOC_CLASSES
 
 class Detect(object):
     """
@@ -18,10 +18,14 @@ class Detect(object):
         self.transform = get_augumentation(phase='test')
         self.show_transform = get_augumentation(phase='show')
         self.model = EfficientDet(num_classes=num_class, is_training=False)
-        self.model = self.model.to(self.device)
+        # self.model = torch.nn.DataParallel(self.model, device_ids=[0, 1])
+        self.model = self.model.cuda()
+
         if(self.weights is not None):
             print('Load pretrained Model')
-            state_dict = torch.load(weights)
+            state = torch.load(self.weights, map_location=lambda storage, loc: storage)
+            state_dict = state['state_dict']
+            num_class = state['num_class']
             self.model.load_state_dict(state_dict)
         
         self.model.eval()
@@ -38,19 +42,20 @@ class Detect(object):
         
         with torch.no_grad():
             scores, classification, transformed_anchors = self.model(img)
-            for i in range(transformed_anchors.size(0)):
-                bbox = transformed_anchors[i, :]  
+            # print('scores: ', scores)
+            idxs = np.where(scores.cpu().data.numpy()>0.25)
+
+            for j in range(idxs[0].shape[0]):
+                bbox = transformed_anchors[idxs[0][j], :]
                 x1 = int(bbox[0])
                 y1 = int(bbox[1])
                 x2 = int(bbox[2])
                 y2 = int(bbox[3])
-                print(x1, x2, y1, y2)
-                color = (255, 0, 0)
-                thickness = 2
-                cv2.rectangle(show_image, (x1, y1), (x2, y2), color, thickness)
-            cv2.imwrite('output.png', show_image)
+                label_name = VOC_CLASSES[int(classification[idxs[0][j]])]
+                cv2.rectangle(show_image, (x1, y1), (x2, y2), (77, 255, 9), 3, 1)
+                cv2.putText(show_image, label_name, (x1-10,y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            cv2.imwrite('docs/output.png', show_image)
 
 if __name__=='__main__':
-    detect = Detect(weights = './weights/checkpoint_100.pth')
-    output = detect.process('/root/data/VOCdevkit/VOC2007/JPEGImages/003476.jpg')
-    print('output: ', output)
+    detect = Detect(weights = './weights/checkpoint_1.pth')
+    output = detect.process('/root/data/VOCdevkit/VOC2007/JPEGImages/001997.jpg')
