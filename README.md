@@ -95,7 +95,6 @@ Output:
 
 ## Performance
 <img src= "./docs/compare.png"/>
-<img src= "./docs/performance.png"/>
 
 
 
