@@ -1,46 +1,41 @@
-from data import *
-from utils.augmentations import SSDAugmentation
-from models.efficientdet import EfficientDet
 import os
 import sys
 import time
+import argparse
+import numpy as np
 import torch
-from torch.autograd import Variable
-import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
-import torch.nn.init as init
-import torch.utils.data as data
-import numpy as np
-import argparse
-from torchvision import transforms
+from torch.utils.data import DataLoader
 
+from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
-
 from datasets import VOCDetection, get_augumentation, detection_collate
 
 
 parser = argparse.ArgumentParser(
-    description='Single Shot MultiBox Detector Training With Pytorch')
+    description='EfficientDet Training With Pytorch')
 train_set = parser.add_mutually_exclusive_group()
 parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO'],
                     type=str, help='VOC or COCO')
 parser.add_argument('--dataset_root', default='/root/data/VOCdevkit/',
                     help='Dataset root directory path')
-parser.add_argument('--num_epoch', default=500, type=int,
-                    help='Batch size for training')
-parser.add_argument('--batch_size', default=32, type=int,
-                    help='Batch size for training')
+parser.add_argument('--model_name', default='efficientdet-d0',
+                    help='Choose model for training')
 parser.add_argument('--resume', default=None, type=str,
                     help='Checkpoint state_dict file to resume training from')
-parser.add_argument('--start_iter', default=0, type=int,
-                    help='Resume training at this iter')
-parser.add_argument('--num_workers', default=12, type=int,
+parser.add_argument('--num_epoch', default=500, type=int,
+                    help='Num epoch for training')
+parser.add_argument('--batch_size', default=32, type=int,
+                    help='Batch size for training')
+parser.add_argument('--num_worker', default=12, type=int,
                     help='Number of workers used in dataloading')
-parser.add_argument('--num_class', default=21, type=int,
+parser.add_argument('--num_classes', default=21, type=int,
                     help='Number of class used in model')
-parser.add_argument('--cuda', default=True, type=bool,
+parser.add_argument('--device', default=[0, 1], type=list,
                     help='Use CUDA to train model')
+parser.add_argument('--grad_accumulation_steps', default=1, type=int,
+                    help='Number of gradient accumulation steps')
 parser.add_argument('--lr', '--learning-rate', default=1e-5, type=float,
                     help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float,
@@ -49,23 +44,25 @@ parser.add_argument('--weight_decay', default=5e-4, type=float,
                     help='Weight decay for SGD')
 parser.add_argument('--gamma', default=0.1, type=float,
                     help='Gamma update for SGD')
-parser.add_argument('--save_folder', default='weights/',
+parser.add_argument('--save_folder', default='./saved/weights/', type=str,
                     help='Directory for saving checkpoint models')
 args = parser.parse_args()
-
-
-if torch.cuda.is_available():
-    if args.cuda:
-        torch.set_default_tensor_type('torch.cuda.FloatTensor')
-    if not args.cuda:
-        print("WARNING: It looks like you have a CUDA device, but aren't " +
-              "using CUDA.\nRun with --cuda for optimal training speed.")
-        torch.set_default_tensor_type('torch.FloatTensor')
-else:
-    torch.set_default_tensor_type('torch.FloatTensor')
-
 if not os.path.exists(args.save_folder):
     os.mkdir(args.save_folder)
+
+def prepare_device(device):
+    n_gpu_use = len(device)
+    n_gpu = torch.cuda.device_count()
+    if n_gpu_use > 0 and n_gpu == 0:
+        print("Warning: There\'s no GPU available on this machine, training will be performed on CPU.")
+        n_gpu_use = 0
+    if n_gpu_use > n_gpu:
+        print("Warning: The number of GPU\'s configured to use is {}, but only {} are available on this machine.".format(n_gpu_use, n_gpu))
+        n_gpu_use = n_gpu
+    list_ids = device
+    device = torch.device('cuda:{}'.format(device[0]) if n_gpu_use > 0 else 'cpu')
+    
+    return device, list_ids
 
 def get_state_dict(model):
     if type(model) == torch.nn.DataParallel:
@@ -73,67 +70,98 @@ def get_state_dict(model):
     else:
         state_dict = model.state_dict()
     return state_dict
+checkpoint = []
+if(args.resume is not None):
+    resume_path = str(args.resume)
+    print("Loading checkpoint: {} ...".format(resume_path))
+    checkpoint = torch.load(args.resume, map_location=lambda storage, loc: storage)
+train_dataset = VOCDetection(root = args.dataset_root,
+                            transform = get_augumentation(phase='train'))
+train_dataloader = DataLoader(train_dataset, 
+                            batch_size=args.batch_size,
+                            num_workers=args.num_worker,
+                            shuffle=True,
+                            collate_fn=detection_collate,
+                            pin_memory=True)
+
+model = EfficientDet(num_classes = args.num_classes, model_name = args.model_name)
+if(args.resume is not None):
+    num_class = checkpoint['num_class']
+    model_name = checkpoint['model_name']
+    model = EfficientDet(num_classes = num_class, model_name = model_name)
+    model.load_state_dict(checkpoint['state_dict'])
+device, device_ids = prepare_device(args.device)
+model = model.to(device)
+if(len(device_ids) > 1):
+    model = torch.nn.DataParallel(model, device_ids=device_ids)
+
+optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
+# scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=args.lr, max_lr=0.1)
+criterion = FocalLoss()
 
 def train():
-    train_dataset = VOCDetection(root = args.dataset_root,
-                        transform= get_augumentation(phase='train'))
-    train_dataloader = data.DataLoader(train_dataset, args.batch_size,
-                                  num_workers=args.num_workers,
-                                  shuffle=True, collate_fn=detection_collate,
-                                  pin_memory=True)
-    model = EfficientDet(num_classes=args.num_class)
-    if(torch.cuda.is_available()):
-        model = torch.nn.DataParallel(model, device_ids=[0, 1])
-        model = model.cuda()
-    if(args.resume is not None):
-        state = torch.load(args.resume, map_location=lambda storage, loc: storage)
-        state_dict = state['state_dict']
-        num_class = state['num_class']
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
-    criterion = FocalLoss()
     model.train()
-    iteration = 0
-    
+    iteration = 1
     for epoch in range(args.num_epoch):
-        print('Start epoch: {} ...'.format(epoch))
+        print("{} epoch: \t start training....".format(epoch))
+        start = time.time()
+        result = {}
         total_loss = []
+        optimizer.zero_grad()
         for idx, (images, annotations) in enumerate(train_dataloader):
-            images = images.cuda()
-            annotations = annotations.cuda()
+            images = images.to(device)
+            annotations = annotations.to(device)
             classification, regression, anchors = model(images)
             classification_loss, regression_loss = criterion(classification, regression, anchors, annotations)
             classification_loss = classification_loss.mean()
             regression_loss = regression_loss.mean()
-
             loss = classification_loss + regression_loss
             if bool(loss == 0):
                 print('loss equal zero(0)')
                 continue
-            optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
-            optimizer.step()
+            if (idx+1) % args.grad_accumulation_steps == 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
+                optimizer.step()
+                optimizer.zero_grad()
+            
             total_loss.append(loss.item())
-
             if(iteration%100==0):
-                print('Epoch/Iteration: {}/{}, classification: {}, regression: {}, totol_loss: {}'.format(epoch, iteration, classification_loss.item(), regression_loss.item(), np.mean(total_loss)))
+                print('{} iteration: training ...'.format(iteration))
+                ans = {
+                    'epoch': epoch,
+                    'iteration': iteration,
+                    'cls_loss': classification_loss.item(),
+                    'reg_loss': regression_loss.item(),
+                    'mean_loss': np.mean(total_loss)
+                }
+                for key, value in ans.items():
+                    print('    {:15s}: {}'.format(str(key), value))
+                
             iteration+=1
         scheduler.step(np.mean(total_loss))
+        result = {
+            'time': time.time() - start,
+            'loss': np.mean(total_loss)            
+        }
+        for key, value in result.items():
+            print('    {:15s}: {}'.format(str(key), value))
         arch = type(model).__name__
         state = {
             'arch': arch,
             'num_class': args.num_class,
+            'model_name': args.model_name,
             'state_dict': get_state_dict(model)
         }
-        torch.save(state, './weights/checkpoint_{}.pth'.format(epoch))
-    model.eval()
+        torch.save(state, './weights/checkpoint_{}_{}.pth'.format(args.model_name, epoch))
     state = {
         'arch': arch,
         'num_class': args.num_class,
+        'model_name': args.model_name,
         'state_dict': get_state_dict(model)
     }
-    torch.save(state, './weights/FinalWeights.pth')
+    torch.save(state, './weights/Final_{}.pth'.format(args.model_name))
 
 if __name__ == '__main__':
     train()

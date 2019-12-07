@@ -1,17 +1,52 @@
 import warnings
-
 import torch.nn as nn
+import torch.nn.functional as F
 
+def conv_ws_2d(input,
+               weight,
+               bias=None,
+               stride=1,
+               padding=0,
+               dilation=1,
+               groups=1,
+               eps=1e-5):
+    c_in = weight.size(0)
+    weight_flat = weight.view(c_in, -1)
+    mean = weight_flat.mean(dim=1, keepdim=True).view(c_in, 1, 1, 1)
+    std = weight_flat.std(dim=1, keepdim=True).view(c_in, 1, 1, 1)
+    weight = (weight - mean) / (std + eps)
+    return F.conv2d(input, weight, bias, stride, padding, dilation, groups)
 
-from .conv_ws import ConvWS2d
-from .norm import build_norm_layer
+class ConvWS2d(nn.Conv2d):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride=1,
+                 padding=0,
+                 dilation=1,
+                 groups=1,
+                 bias=True,
+                 eps=1e-5):
+        super(ConvWS2d, self).__init__(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias)
+        self.eps = eps
 
+    def forward(self, x):
+        return conv_ws_2d(x, self.weight, self.bias, self.stride, self.padding,
+                          self.dilation, self.groups, self.eps)
 conv_cfg = {
     'Conv': nn.Conv2d,
     'ConvWS': ConvWS2d,
     # TODO: octave conv
 }
-
 
 def build_conv_layer(cfg, *args, **kwargs):
     """ Build convolution layer
@@ -38,6 +73,56 @@ def build_conv_layer(cfg, *args, **kwargs):
 
     return layer
 
+norm_cfg = {
+    # format: layer_type: (abbreviation, module)
+    'BN': ('bn', nn.BatchNorm2d),
+    'SyncBN': ('bn', nn.SyncBatchNorm),
+    'GN': ('gn', nn.GroupNorm),
+    # and potentially 'SN'
+}
+
+def build_norm_layer(cfg, num_features, postfix=''):
+    """ Build normalization layer
+    Args:
+        cfg (dict): cfg should contain:
+            type (str): identify norm layer type.
+            layer args: args needed to instantiate a norm layer.
+            requires_grad (bool): [optional] whether stop gradient updates
+        num_features (int): number of channels from input.
+        postfix (int, str): appended into norm abbreviation to
+            create named layer.
+    Returns:
+        name (str): abbreviation + postfix
+        layer (nn.Module): created norm layer
+    """
+    assert isinstance(cfg, dict) and 'type' in cfg
+    cfg_ = cfg.copy()
+
+    layer_type = cfg_.pop('type')
+    if layer_type not in norm_cfg:
+        raise KeyError('Unrecognized norm type {}'.format(layer_type))
+    else:
+        abbr, norm_layer = norm_cfg[layer_type]
+        if norm_layer is None:
+            raise NotImplementedError
+
+    assert isinstance(postfix, (int, str))
+    name = abbr + str(postfix)
+
+    requires_grad = cfg_.pop('requires_grad', True)
+    cfg_.setdefault('eps', 1e-5)
+    if layer_type != 'GN':
+        layer = norm_layer(num_features, **cfg_)
+        if layer_type == 'SyncBN':
+            layer._specify_ddp_gpu_num(1)
+    else:
+        assert 'num_groups' in cfg_
+        layer = norm_layer(num_channels=num_features, **cfg_)
+
+    for param in layer.parameters():
+        param.requires_grad = requires_grad
+
+    return name, layer
 
 class ConvModule(nn.Module):
     """A conv block that contains conv/norm/activation layers.
@@ -136,8 +221,6 @@ class ConvModule(nn.Module):
                     self.activation))
             if self.activation == 'relu':
                 self.activate = nn.ReLU(inplace=inplace)
-
-
     @property
     def norm(self):
         return getattr(self, self.norm_name)

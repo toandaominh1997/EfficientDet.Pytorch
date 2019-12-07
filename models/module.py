@@ -42,7 +42,6 @@ class BBoxTransform(nn.Module):
 
         return pred_boxes
 
-
 class ClipBoxes(nn.Module):
 
     def __init__(self, width=None, height=None):
@@ -87,7 +86,6 @@ class RegressionModel(nn.Module):
         out = out.permute(0, 2, 3, 1)
         return out.contiguous().view(out.shape[0], -1, 4)
 
-
 class ClassificationModel(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=256):
         super(ClassificationModel, self).__init__()
@@ -120,12 +118,6 @@ class ClassificationModel(nn.Module):
         batch_size, width, height, channels = out1.shape
         out2 = out1.view(batch_size, width, height, self.num_anchors, self.num_classes)
         return out2.contiguous().view(x.shape[0], -1, self.num_classes)
-
-
-import numpy as np
-import torch
-import torch.nn as nn
-
 
 class Anchors(nn.Module):
     def __init__(self, pyramid_levels=None, strides=None, sizes=None, ratios=None, scales=None):
@@ -202,7 +194,6 @@ def compute_shape(image_shape, pyramid_levels):
     image_shape = np.array(image_shape[:2])
     image_shapes = [(image_shape + 2 ** x - 1) // (2 ** x) for x in pyramid_levels]
     return image_shapes
-
 
 def anchors_for_shape(
     image_shape,
