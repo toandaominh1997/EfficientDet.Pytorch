@@ -57,5 +57,5 @@ class Detect(object):
             cv2.imwrite('docs/output.png', show_image)
 
 if __name__=='__main__':
-    detect = Detect(weights = './weights/checkpoint_1.pth')
-    output = detect.process('/root/data/VOCdevkit/VOC2007/JPEGImages/001997.jpg')
+    detect = Detect(weights = './weights/checkpoint_108.pth')
+    output = detect.process('/root/data/VOCdevkit/VOC2007/JPEGImages/001999.jpg')
