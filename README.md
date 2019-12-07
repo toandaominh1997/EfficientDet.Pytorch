@@ -6,7 +6,11 @@ Google Research, Brain Team.  The official and original: comming soon.
 <img src= "./docs/arch.png"/>
 
 ### Table of Contents
+- <a href='#recent-update'>Recent Update</a>
+- <a href='#benchmarking'>Benchmarking</a>
 - <a href='#installation'>Installation</a>
+- <a href='#installation'>Installation</a>
+- <a href='#prerequisites'>Prerequisites</a>
 - <a href='#datasets'>Datasets</a>
 - <a href='#training-efficientdet'>Train</a>
 - <a href='#evaluation'>Evaluate</a>
@@ -20,13 +24,31 @@ Google Research, Brain Team.  The official and original: comming soon.
 &nbsp;
 &nbsp;
 
+## Recent Update
+ - [7/12/2019] Support Efficient-D0, Efficient-D1, Efficient-D2, Efficient-D3, Efficient-D4,... . Support change gradient accumulation steps, AdamW.
+## Benchmarking
+
+We benchmark our code thoroughly on three datasets: pascal voc and coco, using family efficientnet different network architectures: EfficientDet-D0->7. Below are the results:
+1). PASCAL VOC 2007 (Train/Test: 07trainval/07test, scale=600, ROI Align)
+
+model    | #GPUs | batch size | lr        | lr_decay | max_epoch     |  time/epoch | mem/GPU | mAP
+---------|--------|-----|--------|-----|-----|-------|--------|-----
+[EfficientDet-D0(with Weight)](https://drive.google.com/open?id=1VxUgsnJ1GK0VFlhFsXbqBA7vNHTk8CA1) | 1 | 32 | 1e-5 | 5   | 100   |  3.hr | 20100 MB   | 31.6
+[EfficientDet-D1->7(Weight: comming soon) | 2 | 32 | 1e-5 | 5   | 100   |  training | training   | **training**
+
+
 ## Installation
 - Install [PyTorch](http://pytorch.org/) by selecting your environment on the website and running the appropriate command.
-- Clone this repository.
-  * Note: We currently only support Python 3.6+.
+- Clone this repository and install package [prerequisites](#prerequisites) below.
 - Then download the dataset by following the [instructions](#datasets) below.
 - Note: For training, we currently support [VOC](http://host.robots.ox.ac.uk/pascal/VOC/) and [COCO](http://mscoco.org/), and aim to add [ImageNet](http://www.image-net.org/) support soon.
 
+### prerequisites
+
+* Python 3.6+
+* PyTorch 1.3+
+* Torchvision 0.4.0+ (**We need high version because Torchvision support nms now.**)
+* requirements.txt 
 ## Datasets
 To make things easy, we provide bash scripts to handle the dataset downloads and setup for you.  We also provide simple dataset loaders that inherit `torch.utils.data.Dataset`, making them fully compatible with the `torchvision.datasets` [API](http://pytorch.org/docs/torchvision/datasets.html).
 
@@ -36,8 +58,8 @@ PASCAL VOC: Visual Object Classes
 ##### Download VOC2007 + VOC2012 trainval & test
 ```Shell
 # specify a directory for dataset to be downloaded into, else default is ~/data/
-sh data/scripts/VOC2007.sh
-sh data/scripts/VOC2012.sh
+sh datasets/scripts/VOC2007.sh
+sh datasets/scripts/VOC2012.sh
 ```
 
 ### COCO
@@ -46,7 +68,7 @@ Microsoft COCO: Common Objects in Context
 ##### Download COCO 2014
 ```Shell
 # specify a directory for dataset to be downloaded into, else default is ~/data/
-sh data/scripts/COCO2014.sh
+sh datasets/scripts/COCO2014.sh
 ```
 **Note**: Read dataset COCO will support soon.
 
@@ -55,12 +77,12 @@ sh data/scripts/COCO2014.sh
 - To train EfficientDet using the train script simply specify the parameters listed in `train.py` as a flag or manually change them.
 
 ```Shell
-python train.py
+python train.py --model_name effcientdet-d0 # Example
 ```
 
   - With VOC Dataset:
   ```Shell
-  python train.py --dataset_root /root/data/VOCdevkit/ # Example
+  python train.py --dataset_root /root/data/VOCdevkit/ --model_name effcientdet-d0 # Example
   ```
   - With COCO Dataset: Support soon
 
@@ -78,7 +100,11 @@ Output:
 <img src= "./docs/output.png">
 
 
-## Results on the validation set VOC 2007 + 2012
+## Webcam Demo
+
+You can use a webcam in a real-time demo by running:
+comming soon
+## Benchmarks
 
 
 | Models | Weights | mAP| params | FLOPs |
@@ -101,11 +127,11 @@ Output:
 ## TODO
 We have accumulated the following to-do list, which we hope to complete in the near future
 - Still to come:
-  * [x] EfficientDet
+  * [x] EfficientDet-D0-7
   * [x] GPU-Parallel
   * [x] NMS
   * [ ] Soft-NMS
-  * [ ] Pretrained model
+  * [x] Pretrained model
   * [x] Demo
   * [ ] Model zoo
   * [ ] TorchScript
