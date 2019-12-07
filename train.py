@@ -76,7 +76,6 @@ def get_state_dict(model):
 
 def train():
     train_dataset = VOCDetection(root = args.dataset_root,
-                        image_sets=[('2007', 'trainval')],
                         transform= get_augumentation(phase='train'))
     train_dataloader = data.DataLoader(train_dataset, args.batch_size,
                                   num_workers=args.num_workers,
