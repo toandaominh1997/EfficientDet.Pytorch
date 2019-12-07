@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 
 from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
-from datasets import VOCDetection, get_augumentation, detection_collate
+from datasets import VOCDetection, COCODetection, get_augumentation, detection_collate
 
 
 parser = argparse.ArgumentParser(
@@ -19,7 +19,7 @@ train_set = parser.add_mutually_exclusive_group()
 parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO'],
                     type=str, help='VOC or COCO')
 parser.add_argument('--dataset_root', default='/root/data/VOCdevkit/',
-                    help='Dataset root directory path')
+                    help='Dataset root directory path [/root/data/VOCdevkit/, /root/data/coco/]')
 parser.add_argument('--model_name', default='efficientdet-d0',
                     help='Choose model for training')
 parser.add_argument('--resume', default=None, type=str,
@@ -36,7 +36,7 @@ parser.add_argument('--device', default=[0, 1], type=list,
                     help='Use CUDA to train model')
 parser.add_argument('--grad_accumulation_steps', default=1, type=int,
                     help='Number of gradient accumulation steps')
-parser.add_argument('--lr', '--learning-rate', default=1e-5, type=float,
+parser.add_argument('--lr', '--learning-rate', default=1e-4, type=float,
                     help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float,
                     help='Momentum value for optim')
@@ -75,8 +75,14 @@ if(args.resume is not None):
     resume_path = str(args.resume)
     print("Loading checkpoint: {} ...".format(resume_path))
     checkpoint = torch.load(args.resume, map_location=lambda storage, loc: storage)
-train_dataset = VOCDetection(root = args.dataset_root,
-                            transform = get_augumentation(phase='train'))
+
+train_dataset = []
+if(args.dataset=='VOC'):
+    train_dataset = VOCDetection(root = args.dataset_root,
+                                transform = get_augumentation(phase='train'))
+elif(args.dataset=='COCO'):
+    train_dataset = COCODetection(root = args.dataset_root,
+                                transform = get_augumentation(phase='train'))
 train_dataloader = DataLoader(train_dataset, 
                             batch_size=args.batch_size,
                             num_workers=args.num_worker,
