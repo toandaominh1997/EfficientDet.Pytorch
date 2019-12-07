@@ -105,20 +105,6 @@ Output:
 
 You can use a webcam in a real-time demo by running:
 comming soon
-## Benchmarks
-
-
-| Models | Weights | mAP| params | FLOPs |
-| ------ | ------ | ------ | ------ | ------ |
-| **EfficientDet-D0** | Drive: [Link Weight](https://drive.google.com/open?id=1VxUgsnJ1GK0VFlhFsXbqBA7vNHTk8CA1) | 31.6 | 3.9 | 2.5 |
-| **EfficientDet-D1** | comming soon | comming soon | comming soon | comming soon |
-| **EfficientDet-D2** | comming soon | comming soon | comming soon | comming soon |
-| **EfficientDet-D3** | comming soon| comming soon | comming soon | comming soon |
-| **EfficientDet-D4** | comming soon | comming soon | comming soon | comming soon |
-| **EfficientDet-D5+AA** | comming soon| comming soon | comming soon | comming soon |
-| **EfficientDet-D6+AA** | comming soon | comming soon | comming soon | comming soon |
-| **EfficientDet-D7+AA** | comming soon | comming soon | comming soon | comming soon |
-
 
 ## Performance
 <img src= "./docs/compare.png"/>
