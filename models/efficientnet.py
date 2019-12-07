@@ -128,23 +128,23 @@ class EfficientNet(nn.Module):
         
         # Build blocks
         self._blocks = nn.ModuleList([])
-        for block_args in self._blocks_args:
+        for i in range(len(self._blocks_args)):
             # Update block input and output filters based on depth multiplier.
-            block_args = block_args._replace(
-                input_filters=round_filters(block_args.input_filters, self._global_params),
-                output_filters=round_filters(block_args.output_filters, self._global_params),
-                num_repeat=round_repeats(block_args.num_repeat, self._global_params)
+            self._blocks_args[i] = self._blocks_args[i]._replace(
+                input_filters=round_filters(self._blocks_args[i].input_filters, self._global_params),
+                output_filters=round_filters(self._blocks_args[i].output_filters, self._global_params),
+                num_repeat=round_repeats(self._blocks_args[i].num_repeat, self._global_params)
             )
 
             # The first block needs to take care of stride and filter size increase.
-            self._blocks.append(MBConvBlock(block_args, self._global_params))
-            if block_args.num_repeat > 1:
-                block_args = block_args._replace(input_filters=block_args.output_filters, stride=1)
-            for _ in range(block_args.num_repeat - 1):
-                self._blocks.append(MBConvBlock(block_args, self._global_params))
+            self._blocks.append(MBConvBlock(self._blocks_args[i], self._global_params))
+            if self._blocks_args[i].num_repeat > 1:
+                self._blocks_args[i] = self._blocks_args[i]._replace(input_filters=self._blocks_args[i].output_filters, stride=1)
+            for _ in range(self._blocks_args[i].num_repeat - 1):
+                self._blocks.append(MBConvBlock(self._blocks_args[i], self._global_params))
 
-        # Head
-        in_channels = block_args.output_filters  # output of final block
+        # Head'efficientdet-d0': 'efficientnet-b0',
+        in_channels = self._blocks_args[len(self._blocks_args)-1].output_filters  # output of final block
         out_channels = round_filters(1280, self._global_params)
         self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
         self._bn1 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
@@ -176,10 +176,10 @@ class EfficientNet(nn.Module):
             if drop_connect_rate:
                 drop_connect_rate *= float(idx) / len(self._blocks)
             x = block(x, drop_connect_rate=drop_connect_rate)
-            num_repeat +=1
-            if num_repeat == self._blocks_args[index].num_repeat:
+            num_repeat = num_repeat + 1
+            if(num_repeat == self._blocks_args[index].num_repeat):
                 num_repeat = 0
-                index+=1
+                index = index + 1
                 P.append(x)
         return P
 
@@ -226,6 +226,16 @@ class EfficientNet(nn.Module):
         valid_models = ['efficientnet-b'+str(i) for i in range(num_models)]
         if model_name not in valid_models:
             raise ValueError('model_name should be one of: ' + ', '.join(valid_models))
+    
+    def get_list_features(self):
+        list_feature = []
+        for idx in range(len(self._blocks_args)):
+            list_feature.append(self._blocks_args[idx].output_filters)
+        
+        return list_feature
+
+
+
 
 
 if __name__=='__main__':

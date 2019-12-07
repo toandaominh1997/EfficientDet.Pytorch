@@ -2,21 +2,29 @@ import torch
 import torch.nn as nn
 import math
 from models.efficientnet import EfficientNet
-from models.bifpn_v2 import BIFPN
+from models.bifpn import BIFPN
 from models.module import RegressionModel, ClassificationModel, Anchors, ClipBoxes, BBoxTransform
 from torchvision.ops import nms 
 
+MODEL_MAP = {
+    'efficientdet-d0': 'efficientnet-b0',
+    'efficientdet-d1': 'efficientnet-b1',
+    'efficientdet-d2': 'efficientnet-b2',
+    'efficientdet-d3': 'efficientnet-b3',
+    'efficientdet-d4': 'efficientnet-b4',
+    'efficientdet-d5': 'efficientnet-b5',
+}
 class EfficientDet(nn.Module):
     def __init__(self,
-                 num_classes=21,
+                 num_classes,
                  levels=3,
                  num_channels=128,
                  model_name='efficientnet-b0',
                  is_training=True):
         super(EfficientDet, self).__init__()
-        self.efficientnet = EfficientNet.from_pretrained(model_name)
+        self.efficientnet = EfficientNet.from_pretrained(MODEL_MAP[model_name])
         self.is_training = is_training
-        self.BIFPN = BIFPN(in_channels=[40, 80, 112, 192, 320],
+        self.BIFPN = BIFPN(in_channels=self.efficientnet.get_list_features()[2:],
                                 out_channels=256,
                                 num_outs=5)
         self.regressionModel = RegressionModel(256)
