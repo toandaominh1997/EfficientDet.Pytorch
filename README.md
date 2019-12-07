@@ -1,5 +1,5 @@
 # EfficientDet: Scalable and Efficient Object Detection, in PyTorch
-A [PyTorch](http://pytorch.org/) implementation of [EfficientDet](https://arxiv.org/pdf/1911.09070.pdf) from the 2019 paper by Mingxing Tan Ruoming Pang Quoc V. Le
+A [PyTorch](http://pytorch.org/) implementation of [EfficientDet](https://arxiv.org/abs/1911.09070) from the 2019 paper by Mingxing Tan Ruoming Pang Quoc V. Le
 Google Research, Brain Team.  The official and original: comming soon.
 
 
@@ -29,6 +29,7 @@ Google Research, Brain Team.  The official and original: comming soon.
 ## Benchmarking
 
 We benchmark our code thoroughly on three datasets: pascal voc and coco, using family efficientnet different network architectures: EfficientDet-D0->7. Below are the results:
+
 1). PASCAL VOC 2007 (Train/Test: 07trainval/07test, scale=600, ROI Align)
 
 model    | #GPUs | batch size | lr        | lr_decay | max_epoch     |  time/epoch | mem/GPU | mAP
@@ -146,10 +147,19 @@ We have accumulated the following to-do list, which we hope to complete in the n
 ***Note:*** Unfortunately, this is just a hobby of ours and not a full-time job, so we'll do our best to keep things up to date, but no guarantees.  That being said, thanks to everyone for your continued help and feedback as it is really appreciated. We will try to address everything as soon as possible.
 
 ## References
-- tanmingxing, rpang, qvl, et al. "EfficientDet: Scalable and Efficient Object Detection." [EfficientDet]((https://arxiv.org/abs/1911.09070)).
+- tanmingxing, rpang, qvl, et al. "EfficientDet: Scalable and Efficient Object Detection." [EfficientDet](https://arxiv.org/abs/1911.09070).
 - A list of other great EfficientDet ports that were sources of inspiration:
   * [EfficientNet](https://github.com/lukemelas/EfficientNet-PyTorch)
   * [SSD.Pytorch](https://github.com/amdegroot/ssd.pytorch)
   * [RetinaNet.Pytorch](https://github.com/yhenon/pytorch-retinanet)
   * [NMS.Torchvision](https://pytorch.org/docs/stable/torchvision/ops.html)
   
+
+## Citation
+
+    @article{efficientdetpytoan,
+        Author = {Toan Dao Minh},
+        Title = {A Pytorch Implementation of EfficientDet Object Detection},
+        Journal = {github.com/toandaominh1997/EfficientDet.Pytorch},
+        Year = {2019}
+    }
