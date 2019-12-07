@@ -12,12 +12,18 @@ import argparse
 
 parser = argparse.ArgumentParser(description='EfficientDet')
 
-parser.add_argument('-n', '--network', default='efficientdet-d0', help='efficientdet-[d0, d1, ..]')
-parser.add_argument('-s', '--score', action="store_true", default=True, help='Show score')
-parser.add_argument('-t', '--threshold', default=0.5, type=float, help='Visualization threshold')
-parser.add_argument('-w', '--weight', default='./weights/voc0712.pth', type=str, help='Weight model path')
-parser.add_argument('-c', '--cam', action="store_true", default=True, help='Use camera')
-parser.add_argument('-f', '--file_name', default='pic.jpg', help='Image path')
+parser.add_argument('-n', '--network', default='efficientdet-d0',
+                    help='efficientdet-[d0, d1, ..]')
+parser.add_argument('-s', '--score', default=True,
+                    action="store_true", help='Show score')
+parser.add_argument('-t', '--threshold', default=0.5,
+                    type=float, help='Visualization threshold')
+parser.add_argument('-w', '--weight', default='./weights/voc0712.pth',
+                    type=str, help='Weight model path')
+parser.add_argument('-c', '--cam',  default=True,
+                    action="store_true", help='Use camera')
+parser.add_argument('-f', '--file_name', default='pic.jpg',
+                    help='Image path')
 
 args = parser.parse_args()
 
@@ -72,11 +78,15 @@ class Detect(object):
                 cv2.rectangle(show_image, (x1, y1), (x2, y2), (77, 255, 9), 3, 1)
                 if args.score:
                     score = np.around(scores[[j]].cpu().numpy(), decimals=2) * 100
-                    cv2.putText(show_image, '{} {}%'.format(label_name, int(score)), 
-                     (x1-10, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2) 
+                    cv2.putText(
+                        show_image, '{} {}%'.format(label_name, int(score)),
+                        (x1-10, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2
+                        )
                 else:
-                    cv2.putText(show_image, label_name, (x1-10, y1-10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                    cv2.putText(
+                        show_image, label_name, (x1-10, y1-10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2
+                        )
             if show:
                 cv2.imshow("Detection", show_image)
                 cv2.waitKey(0)
@@ -93,7 +103,7 @@ class Detect(object):
         accum_time = 0
         curr_fps = 0
         fps = "FPS: ??"
-        prev_time = timer() 
+        prev_time = timer()
         while True:
 
             res, img = cap.read()
@@ -106,12 +116,14 @@ class Detect(object):
             if accum_time > 1:
                     accum_time = accum_time - 1
                     fps = curr_fps
-                    curr_fps = 0          
+                    curr_fps = 0  
             if res:
                 show_image = self.process(img=img)
-                cv2.putText(show_image, "FPS: " + str(fps), (10,  20), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 250, 0), 2)
-                
+                cv2.putText(
+                    show_image, "FPS: " + str(fps), (10,  20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 250, 0), 2
+                    )
+
                 cv2.imshow("Detection", show_image)
                 k = cv2.waitKey(1)
                 if k == 27:
@@ -121,7 +133,7 @@ class Detect(object):
                 exit(-1)
             count_tfps += 1
         cap.release()
-        cv2.destroyAllWindows()     
+        cv2.destroyAllWindows()
 
 if __name__=='__main__':
     detect = Detect(weights=args.weight)
