@@ -13,11 +13,11 @@ import argparse
 parser = argparse.ArgumentParser(description='EfficientDet')
 
 parser.add_argument('-n','--network', default='efficientdet-d0', help='efficientdet-[d0,d1,d2..]')
-parser.add_argument('-s', '--score', action="store_true", default=True, help='show score detection results')
-parser.add_argument('-t','--threshold', default=0.5, type=float, help='visualization threshold')
-parser.add_argument('-w', '--weight', default='./weights/voc0712.pth',type=str, help='Trained model location')
-parser.add_argument('-c', '--cam', action="store_true", default=True, help='Use demo camera')
-parser.add_argument('-f','--file_name', default='pic.jpg', help='image path')
+parser.add_argument('-s', '--score', action="store_true", default=True, help='Show score detection results')
+parser.add_argument('-t','--threshold', default=0.5, type=float, help='Visualization threshold')
+parser.add_argument('-w', '--weight', default='./weights/voc0712.pth',type=str, help='Weight model path')
+parser.add_argument('-c', '--cam', action="store_true", default=True, help='Use camera')
+parser.add_argument('-f','--file_name', default='pic.jpg', help='Image path')
 
 args = parser.parse_args()
 
@@ -33,7 +33,7 @@ class Detect(object):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
         self.transform = get_augumentation(phase='test')
         self.show_transform = get_augumentation(phase='show')
-        self.model = EfficientDet(model_name=args.network,num_classes=num_class, is_training=False,threshold=args.threshold)
+        self.model = EfficientDet(num_classes=num_class,model_name=args.network, is_training=False,threshold=args.threshold)
         # self.model = torch.nn.DataParallel(self.model, device_ids=[0, 1])
         self.model = self.model.cuda()
 
