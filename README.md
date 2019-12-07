@@ -81,16 +81,16 @@ Output:
 ## Results on the validation set VOC 2007 + 2012
 
 
-| Models | mAP| params | FLOPs |
-| ------ | ------ | ------ | ------ |
-| **EfficientDet-D0** | **training** | **training** | **training** |
-| **EfficientDet-D1** | comming soon | comming soon | comming soon |
-| **EfficientDet-D2** | comming soon | comming soon | comming soon |
-| **EfficientDet-D3** | comming soon | comming soon | comming soon |
-| **EfficientDet-D4** | comming soon | comming soon | comming soon |
-| **EfficientDet-D5+AA** | comming soon | comming soon | comming soon |
-| **EfficientDet-D6+AA** | comming soon | comming soon | comming soon |
-| **EfficientDet-D7+AA** | comming soon | comming soon | comming soon |
+| Models | Weights | mAP| params | FLOPs |
+| ------ | ------ | ------ | ------ | ------ |
+| **EfficientDet-D0** | Drive: [Link Weight](https://drive.google.com/open?id=1VxUgsnJ1GK0VFlhFsXbqBA7vNHTk8CA1) | 31.6 | 3.9 | 2.5 |
+| **EfficientDet-D1** | comming soon | comming soon | comming soon | comming soon |
+| **EfficientDet-D2** | comming soon | comming soon | comming soon | comming soon |
+| **EfficientDet-D3** | comming soon| comming soon | comming soon | comming soon |
+| **EfficientDet-D4** | comming soon | comming soon | comming soon | comming soon |
+| **EfficientDet-D5+AA** | comming soon| comming soon | comming soon | comming soon |
+| **EfficientDet-D6+AA** | comming soon | comming soon | comming soon | comming soon |
+| **EfficientDet-D7+AA** | comming soon | comming soon | comming soon | comming soon |
 
 
 ## Performance
