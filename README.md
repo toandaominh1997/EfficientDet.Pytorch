@@ -5,6 +5,14 @@ Google Research, Brain Team.  The official and original: comming soon.
 
 <img src= "./docs/arch.png"/>
 
+# Fun with Demo:
+```Shell
+python demo.py --weights ./weights/voc0712.pth
+
+```
+
+![](docs/pytoan.gif)
+
 ### Table of Contents
 - <a href='#recent-update'>Recent Update</a>
 - <a href='#benchmarking'>Benchmarking</a>
