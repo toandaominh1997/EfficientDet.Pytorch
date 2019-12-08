@@ -19,8 +19,9 @@ class EfficientDet(nn.Module):
                  num_classes,
                  levels=3,
                  num_channels=128,
-                 model_name='efficientnet-b0',
-                 is_training=True):
+                 model_name='efficientdet-d0',
+                 is_training=True,
+                 threshold=0.5):
         super(EfficientDet, self).__init__()
         self.efficientnet = EfficientNet.from_pretrained(MODEL_MAP[model_name])
         self.is_training = is_training
@@ -32,6 +33,7 @@ class EfficientDet(nn.Module):
         self.anchors = Anchors()
         self.regressBoxes = BBoxTransform()
         self.clipBoxes = ClipBoxes()
+        self.threshold = threshold
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -60,7 +62,7 @@ class EfficientDet(nn.Module):
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, inputs)
             scores = torch.max(classification, dim=2, keepdim=True)[0]
-            scores_over_thresh = (scores>0.5)[0, :, 0]
+            scores_over_thresh = (scores > self.threshold)[0, :, 0]
 
             if scores_over_thresh.sum() == 0:
                 print('No boxes to NMS')
