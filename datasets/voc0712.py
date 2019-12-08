@@ -123,5 +123,9 @@ class VOCDetection(data.Dataset):
 
     def __len__(self):
         return len(self.ids)
+    def __num_class__(self):
+        return len(VOC_CLASSES)
+    def label_to_name(self, label):
+        return VOC_CLASSES[label]
     
     
