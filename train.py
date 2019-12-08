@@ -20,8 +20,8 @@ parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO'],
                     type=str, help='VOC or COCO')
 parser.add_argument('--dataset_root', default='/root/data/VOCdevkit/',
                     help='Dataset root directory path [/root/data/VOCdevkit/, /root/data/coco/]')
-parser.add_argument('--model_name', default='efficientdet-d0',
-                    help='Choose model for training')
+parser.add_argument('--network', default='efficientdet-d0', type=str,
+                    help='efficientdet-[d0, d1, ..]')
 parser.add_argument('--resume', default=None, type=str,
                     help='Checkpoint state_dict file to resume training from')
 parser.add_argument('--num_epoch', default=500, type=int,
@@ -90,11 +90,11 @@ train_dataloader = DataLoader(train_dataset,
                             collate_fn=detection_collate,
                             pin_memory=True)
 
-model = EfficientDet(num_classes = args.num_classes, model_name = args.model_name)
+model = EfficientDet(num_classes = args.num_classes, network = args.network)
 if(args.resume is not None):
-    num_class = checkpoint['num_classes']
-    model_name = checkpoint['model_name']
-    model = EfficientDet(num_classes = num_class, model_name = model_name)
+    # num_class = checkpoint['num_classes']
+    # network = checkpoint['network']
+    model = EfficientDet(num_classes = 21, network = 'efficientdet-d0')
     model.load_state_dict(checkpoint['state_dict'])
 device, device_ids = prepare_device(args.device)
 model = model.to(device)
@@ -157,17 +157,17 @@ def train():
         state = {
             'arch': arch,
             'num_class': args.num_classes,
-            'model_name': args.model_name,
+            'network': args.network,
             'state_dict': get_state_dict(model)
         }
-        torch.save(state, './weights/checkpoint_{}_{}.pth'.format(args.model_name, epoch))
+        torch.save(state, './weights/checkpoint_{}_{}.pth'.format(args.network, epoch))
     state = {
         'arch': arch,
         'num_class': args.num_class,
-        'model_name': args.model_name,
+        'network': args.network,
         'state_dict': get_state_dict(model)
     }
-    torch.save(state, './weights/Final_{}.pth'.format(args.model_name))
+    torch.save(state, './weights/Final_{}.pth'.format(args.network))
 
 if __name__ == '__main__':
     train()
