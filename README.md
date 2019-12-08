@@ -11,7 +11,10 @@ python demo.py --weights ./weights/voc0712.pth
 
 ```
 
-![](docs/pytoan.gif)
+<p align="center">
+<img src="docs/pytoan.gif">
+</p>
+
 
 ### Table of Contents
 - <a href='#recent-update'>Recent Update</a>
@@ -105,9 +108,9 @@ python demo.py --weights ./weights/voc0712.pth --threshold 0.5
 
 Output: 
 
-
+<p align="center">
 <img src= "./docs/output.png">
-
+</p>
 
 ## Webcam Demo
 
