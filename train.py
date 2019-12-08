@@ -92,7 +92,7 @@ train_dataloader = DataLoader(train_dataset,
 
 model = EfficientDet(num_classes = args.num_classes, model_name = args.model_name)
 if(args.resume is not None):
-    num_class = checkpoint['num_class']
+    num_class = checkpoint['num_classes']
     model_name = checkpoint['model_name']
     model = EfficientDet(num_classes = num_class, model_name = model_name)
     model.load_state_dict(checkpoint['state_dict'])
@@ -156,7 +156,7 @@ def train():
         arch = type(model).__name__
         state = {
             'arch': arch,
-            'num_class': args.num_class,
+            'num_class': args.num_classes,
             'model_name': args.model_name,
             'state_dict': get_state_dict(model)
         }
