@@ -92,7 +92,7 @@ To evaluate a trained network:
 ## Demo
 
 ```Shell
-python demo.py 
+python demo.py --weights ./weights/voc0712.pth --threshold 0.5
 ```
 
 Output: 
