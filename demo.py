@@ -69,8 +69,6 @@ class Detect(object):
         if file_name is not None:
             img = cv2.imread(file_name)
         origin_img = copy.deepcopy(img)
-        show_aug = self.show_transform(image=img)
-        show_image = show_aug['image']
         augmentation = self.transform(image=img)
         img = augmentation['image']
         img = img.to(self.device)
@@ -78,8 +76,6 @@ class Detect(object):
 
         with torch.no_grad():
             scores, classification, transformed_anchors = self.model(img)
-
-            # idxs = np.where(scores.cpu().data.numpy()>args.threshold)
             bboxes = list()
             labels = list()
             bbox_scores = list()
@@ -122,8 +118,6 @@ class Detect(object):
                             (x1, y1), cv2.FONT_HERSHEY_SIMPLEX,
                             0.8, (0, 0, 0), 2
                         )
-            if(len(bboxes) == 0):
-                return origin_img
             if show:
                 fig, ax = vis_bbox(img=origin_img, bbox=bboxes,
                                    label=labels, score=bbox_scores)
@@ -133,7 +127,7 @@ class Detect(object):
                 return origin_img
 
     def camera(self):
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture('0')
         if not cap.isOpened():
             print("Unable to open camera")
             exit(-1)

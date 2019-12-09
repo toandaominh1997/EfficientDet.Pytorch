@@ -60,7 +60,9 @@ def vis_bbox(img, bbox, label=None, score=None,
     if instance_colors is None:
         # Red
         instance_colors = np.zeros((len(bbox), 3), dtype=np.float32)
-        instance_colors[:, 0] = 255
+        instance_colors[:, 0] = 51
+        instance_colors[:, 1] = 51
+        instance_colors[:, 2] = 224
     instance_colors = np.array(instance_colors)
 
     for i, bb in enumerate(bbox):
@@ -79,12 +81,13 @@ def vis_bbox(img, bbox, label=None, score=None,
             caption.append('{}'.format(sc))
 
         if len(caption) > 0:
+            face_color = np.array([225, 51, 123])/255
             ax.text(bb[0], bb[1],
                     ': '.join(caption),
                     fontsize=12,
                     color='black',
                     style='italic',
-                    bbox={'facecolor': color, 'edgecolor': color, 'alpha': 1, 'pad': 0})
+                    bbox={'facecolor': face_color, 'edgecolor': face_color, 'alpha': 1, 'pad': 0})
     return fig, ax
 
 from PIL import Image

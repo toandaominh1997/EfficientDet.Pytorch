@@ -7,8 +7,7 @@ Google Research, Brain Team.  The official and original: comming soon.
 
 # Fun with Demo:
 ```Shell
-python demo.py --weights ./weights/voc0712.pth
-
+python demo.py --weight ./voc_v5.pth --threshold 0.6 --iou_threshold 0.5 --cam --score
 ```
 
 <p align="center">
@@ -45,7 +44,7 @@ We benchmark our code thoroughly on three datasets: pascal voc and coco, using f
 
 model    | #GPUs | batch size | lr        | lr_decay | max_epoch     |  time/epoch | mem/GPU | mAP
 ---------|--------|-----|--------|-----|-----|-------|--------|-----
-[EfficientDet-D0(with Weight)](https://drive.google.com/open?id=1FUPq9QG4ce27nUFHsdEVc1kgOptYrJhw) | 2 | 32 | 1e-5 | 5   | 100   |  3.hr | 20100 MB   | updating
+[EfficientDet-D0(with Weight)](https://drive.google.com/open?id=1uO4t7qgZe4lQ3yi5yJbXzhQ5sgd-KOxR) | 2 | 32 | 1e-5 | 5   | 100   |  20.min | 20100 MB   | updating
 [EfficientDet-D1->7(Weight: comming soon) | 2 | 32 | 1e-5 | 5   | 100   |  training | training   | **training**
 
 
@@ -100,6 +99,9 @@ python train.py --model_name effcientdet-d0 # Example
 
 ## Evaluation
 To evaluate a trained network:
+```Shell
+python eval.py
+```
 ## Demo
 
 ```Shell
@@ -109,13 +111,15 @@ python demo.py --weights ./weights/voc0712.pth --threshold 0.5
 Output: 
 
 <p align="center">
-<img src= "./docs/output.png">
+<img src= "./docs/demo.png">
 </p>
 
 ## Webcam Demo
 
 You can use a webcam in a real-time demo by running:
-comming soon
+```Shell
+python demo.py --weight ./voc_v5.pth --threshold 0.6 --iou_threshold 0.5 --cam --score
+```
 
 ## Performance
 <img src= "./docs/compare.png"/>
