@@ -19,11 +19,12 @@ class EfficientDet(nn.Module):
                  num_classes,
                  levels=3,
                  num_channels=128,
-                 model_name='efficientdet-d0',
+                 network = 'efficientdet-d0',
                  is_training=True,
-                 threshold=0.5):
+                 threshold=0.5,
+                 iou_threshold=0.5):
         super(EfficientDet, self).__init__()
-        self.efficientnet = EfficientNet.from_pretrained(MODEL_MAP[model_name])
+        self.efficientnet = EfficientNet.from_pretrained(MODEL_MAP[network])
         self.is_training = is_training
         self.BIFPN = BIFPN(in_channels=self.efficientnet.get_list_features()[2:],
                                 out_channels=256,
@@ -34,6 +35,7 @@ class EfficientDet(nn.Module):
         self.regressBoxes = BBoxTransform()
         self.clipBoxes = ClipBoxes()
         self.threshold = threshold
+        self.iou_threshold = iou_threshold
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -71,7 +73,7 @@ class EfficientDet(nn.Module):
             classification = classification[:, scores_over_thresh, :]
             transformed_anchors = transformed_anchors[:, scores_over_thresh, :]
             scores = scores[:, scores_over_thresh, :]
-            anchors_nms_idx = nms(transformed_anchors[0, :, :], scores[0, :, 0], iou_threshold = 0.5)
+            anchors_nms_idx = nms(transformed_anchors[0, :, :], scores[0, :, 0], iou_threshold = self.iou_threshold)
             nms_scores, nms_class = classification[0, anchors_nms_idx, :].max(dim=1)
             return [nms_scores, nms_class, transformed_anchors[0, anchors_nms_idx, :]]
     def freeze_bn(self):

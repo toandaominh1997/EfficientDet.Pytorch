@@ -16,7 +16,9 @@ parser.add_argument('-n', '--network', default='efficientdet-d0',
                     help='efficientdet-[d0, d1, ..]')
 parser.add_argument('-s', '--score', default=True,
                     action="store_true", help='Show score')
-parser.add_argument('-t', '--threshold', default=0.5,
+parser.add_argument('-t', '--threshold', default=0.6,
+                    type=float, help='Visualization threshold')
+parser.add_argument('-it', '--iou_threshold', default=0.6,
                     type=float, help='Visualization threshold')
 parser.add_argument('-w', '--weight', default='./weights/voc0712.pth',
                     type=str, help='Weight model path')
@@ -46,8 +48,8 @@ class Detect(object):
             network = checkpoint['network']
 
         self.model = EfficientDet(
-                    num_classes=num_class, model_name=network,
-                    is_training=False, threshold=args.threshold
+                    num_classes=num_class, network=network,
+                    is_training=False, threshold=args.threshold, iou_threshold=args.iou_threshold
                     )
 
         if(self.weights is not None):
@@ -101,7 +103,7 @@ class Detect(object):
                 return show_image
 
     def camera(self):
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(0)
         if not cap.isOpened():
             print("Unable to open camera")
             exit(-1)
