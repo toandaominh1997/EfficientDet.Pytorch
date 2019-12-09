@@ -24,35 +24,36 @@ parser.add_argument('-c', '--cam',  default=True,
                     action="store_true", help='Use camera')
 parser.add_argument('-f', '--file_name', default='pic.jpg',
                     help='Image path')
-
+parser.add_argument('--num_class', default=21, type=int,
+                    help='Number of class used in model')
 args = parser.parse_args()
-
 
 
 class Detect(object):
     """
         dir_name: Folder or image_file
     """
-    def __init__(self, weights, num_class=21):
+    def __init__(self, weights, num_class=21, network='efficientdet-d0'):
         super(Detect,  self).__init__()
         self.weights = weights
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
         self.transform = get_augumentation(phase='test')
         self.show_transform = get_augumentation(phase='show')
-        self.model = EfficientDet(
-                    num_classes=num_class, model_name=args.network,
-                    is_training=False, threshold=args.threshold
-                    )
-        # self.model = torch.nn.DataParallel(self.model, device_ids=[0, 1])
-        self.model = self.model.cuda()
-
         if(self.weights is not None):
             print('Load pretrained Model')
-            state = torch.load(self.weights, map_location=lambda storage, loc: storage)
-            state_dict = state['state_dict']
-            num_class = state['num_class']
+            checkpoint = torch.load(self.weights, map_location=lambda storage, loc: storage)
+            num_class = checkpoint['num_class']
+            network = checkpoint['network']
+
+        self.model = EfficientDet(
+                    num_classes=num_class, model_name=network,
+                    is_training=False, threshold=args.threshold
+                    )
+
+        if(self.weights is not None):
+            state_dict = checkpoint['state_dict']
             self.model.load_state_dict(state_dict)
-        
+        self.model = self.model.cuda()
         self.model.eval()
 
     def process(self, file_name=None, img=None, show=False):
@@ -100,7 +101,7 @@ class Detect(object):
                 return show_image
 
     def camera(self):
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(2)
         if not cap.isOpened():
             print("Unable to open camera")
             exit(-1)
