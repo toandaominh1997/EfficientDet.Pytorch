@@ -7,7 +7,7 @@ Google Research, Brain Team.  The official and original: comming soon.
 
 # Fun with Demo:
 ```Shell
-python demo.py --weights ./weights/voc0712.pth
+python demo.py --weight ./weights/voc0712.pth --threshold 0.7 --iou_threshold 0.7 # Example
 
 ```
 
@@ -45,7 +45,7 @@ We benchmark our code thoroughly on three datasets: pascal voc and coco, using f
 
 model    | #GPUs | batch size | lr        | lr_decay | max_epoch     |  time/epoch | mem/GPU | mAP
 ---------|--------|-----|--------|-----|-----|-------|--------|-----
-[EfficientDet-D0(with Weight)](https://drive.google.com/open?id=1FUPq9QG4ce27nUFHsdEVc1kgOptYrJhw) | 2 | 32 | 1e-5 | 5   | 100   |  3.hr | 20100 MB   | updating
+[EfficientDet-D0(with Weight)](https://drive.google.com/open?id=1j1BCiW3d-7V2kxFrlphJV8rrzOq9tHiU) | 2 | 32 | 1e-5 | 5   | 100   |  3.hr | 20100 MB   | updating
 [EfficientDet-D1->7(Weight: comming soon) | 2 | 32 | 1e-5 | 5   | 100   |  training | training   | **training**
 
 
