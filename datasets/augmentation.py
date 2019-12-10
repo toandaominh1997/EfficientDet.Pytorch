@@ -1,40 +1,35 @@
-import albumentations as albu  
+import albumentations as albu
 from albumentations.pytorch.transforms import ToTensor
-import torch 
-import numpy as np 
+import torch
+import numpy as np
+
+
 def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=0.):
     list_transforms = []
-    if phase=='train':
+    if phase == 'train':
         list_transforms.extend([
-            
+            albu.augmentations.transforms.RandomResizedCrop(
+                height=height, width=width, p=1.0),
             albu.HorizontalFlip(p=0.5),
             albu.OneOf([
-                    albu.RandomContrast(),
-                    albu.RandomGamma(),
-                    albu.RandomBrightness(),
-                    albu.VerticalFlip(p=0.5),
+                albu.RandomContrast(),
+                albu.RandomGamma(),
+                albu.RandomBrightness(),
+                albu.VerticalFlip(p=0.5),
             ], p=0.3),
             albu.ShiftScaleRotate(),
-        ]) 
-
-    list_transforms.extend([
-        albu.Resize(width, height),
-    ])
-
-    if phase =='train':
-        list_transforms.extend([
-            albu.CenterCrop(p=0.2, height=height, width=width)
         ])
-    if(phase == 'show'):
-        return albu.Compose(list_transforms)
-
     list_transforms.extend([
         ToTensor()
     ])
-    if(phase=='test'):
+    if(phase == 'test'):
+        list_transforms.extend([
+            albu.Resize(width, height),
+        ])
         return albu.Compose(list_transforms)
-    return albu.Compose(list_transforms, bbox_params=albu.BboxParams(format='pascal_voc', min_area=min_area, 
-                                               min_visibility=min_visibility, label_fields=['category_id']))
+    return albu.Compose(list_transforms, bbox_params=albu.BboxParams(format='pascal_voc', min_area=min_area,
+                                                                     min_visibility=min_visibility, label_fields=['category_id']))
+
 
 def detection_collate(batch):
     imgs = [s['image'] for s in batch]
