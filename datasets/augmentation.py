@@ -19,13 +19,14 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
             ], p=0.3),
             albu.ShiftScaleRotate(),
         ])
+    if(phase == 'test'):
+        list_transforms.extend([
+            albu.Resize(height=height, width=width)
+        ])
     list_transforms.extend([
         ToTensor()
     ])
     if(phase == 'test'):
-        list_transforms.extend([
-            albu.Resize(width, height),
-        ])
         return albu.Compose(list_transforms)
     return albu.Compose(list_transforms, bbox_params=albu.BboxParams(format='pascal_voc', min_area=min_area,
                                                                      min_visibility=min_visibility, label_fields=['category_id']))

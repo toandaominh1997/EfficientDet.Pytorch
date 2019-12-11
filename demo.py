@@ -12,6 +12,23 @@ import argparse
 import copy
 from utils import vis_bbox
 
+EFFICIENTDET = {
+    'efficientdet-d0': {'input_size': 512,
+                        'backbone': 'B0',
+                        'W_bifpn': 64,
+                        'D_bifpn': 2,
+                        'D_class': 3},
+    'efficientdet-d1': {'input_size': 640,
+                        'backbone': 'B1',
+                        'W_bifpn': 88,
+                        'D_bifpn': 3,
+                        'D_class': 3},
+    'efficientdet-d2': {'input_size': 768,
+                        'backbone': 'B2',
+                        'W_bifpn': 112,
+                        'D_bifpn': 4,
+                        'D_class': 3},
+}
 
 parser = argparse.ArgumentParser(description='EfficientDet')
 
@@ -46,7 +63,6 @@ class Detect(object):
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else 'cpu')
         self.transform = get_augumentation(phase='test')
-        self.show_transform = get_augumentation(phase='show')
         if(self.weights is not None):
             print('Load pretrained Model')
             checkpoint = torch.load(
@@ -54,10 +70,13 @@ class Detect(object):
             num_class = checkpoint['num_class']
             network = checkpoint['network']
 
-        self.model = EfficientDet(
-            num_classes=num_class, network=network,
-            is_training=False, threshold=args.threshold, iou_threshold=args.iou_threshold
-        )
+        self.model = EfficientDet(num_classes=num_class,
+                     network=network,
+                     W_bifpn=EFFICIENTDET[network]['W_bifpn'],
+                     D_bifpn=EFFICIENTDET[network]['D_bifpn'],
+                     D_class=EFFICIENTDET[network]['D_class'],
+                     is_training=False
+                     )
 
         if(self.weights is not None):
             state_dict = checkpoint['state_dict']
@@ -81,7 +100,7 @@ class Detect(object):
             bbox_scores = list()
             colors = list()
             for j in range(scores.shape[0]):
-                bbox = transformed_anchors[[j], :][0]
+                bbox = transformed_anchors[[j], :][0].data.cpu().numpy()
                 x1 = int(bbox[0]*origin_img.shape[1]/self.size_image[1])
                 y1 = int(bbox[1]*origin_img.shape[0]/self.size_image[0])
                 x2 = int(bbox[2]*origin_img.shape[1]/self.size_image[1])
@@ -127,7 +146,7 @@ class Detect(object):
                 return origin_img
 
     def camera(self):
-        cap = cv2.VideoCapture('0')
+        cap = cv2.VideoCapture(0)
         if not cap.isOpened():
             print("Unable to open camera")
             exit(-1)
