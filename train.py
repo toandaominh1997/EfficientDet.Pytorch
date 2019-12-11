@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 
 from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
-from datasets import VOCDetection, COCODetection, get_augumentation, detection_collate
+from datasets import VOCDetection, COCODetection, CocoDataset, get_augumentation, detection_collate
 from utils import EFFICIENTDET
 
 
@@ -92,8 +92,10 @@ if(args.dataset == 'VOC'):
     train_dataset = VOCDetection(root=args.dataset_root,
                                  transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
 elif(args.dataset == 'COCO'):
-    train_dataset = COCODetection(root=args.dataset_root,
-                                  transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
+    train_dataset = CocoDataset(root_dir=args.dataset_root, set_name='trainval35k', transform=get_augumentation(
+        phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
+    # train_dataset = COCODetection(root=args.dataset_root,
+    #                               transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
 train_dataloader = DataLoader(train_dataset,
                               batch_size=args.batch_size,
                               num_workers=args.num_worker,
@@ -135,7 +137,7 @@ def train():
             annotations = annotations.to(device)
             classification, regression, anchors = model(images)
             classification_loss, regression_loss = criterion(
-                classification, regression, anchors, annotations)
+                classification, regression, anchors, annotations, device=device)
             classification_loss = classification_loss.mean()
             regression_loss = regression_loss.mean()
             loss = classification_loss + regression_loss
