@@ -1,0 +1,17 @@
+EFFICIENTDET = {
+    'efficientdet-d0': {'input_size': 512,
+                        'backbone': 'B0',
+                        'W_bifpn': 64,
+                        'D_bifpn': 2,
+                        'D_class': 3},
+    'efficientdet-d1': {'input_size': 640,
+                        'backbone': 'B1',
+                        'W_bifpn': 88,
+                        'D_bifpn': 3,
+                        'D_class': 3},
+    'efficientdet-d2': {'input_size': 768,
+                        'backbone': 'B2',
+                        'W_bifpn': 112,
+                        'D_bifpn': 4,
+                        'D_class': 3},
+}
