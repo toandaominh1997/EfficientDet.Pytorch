@@ -27,10 +27,10 @@ class EfficientDet(nn.Module):
         super(EfficientDet, self).__init__()
         self.efficientnet = EfficientNet.from_pretrained(MODEL_MAP[network])
         self.is_training = is_training
-        self.BIFPN = BIFPN(in_channels=self.efficientnet.get_list_features()[2:],
+        self.BIFPN = BIFPN(in_channels=self.efficientnet.get_list_features()[-5:],
                                 out_channels=W_bifpn,
                                 stack=D_bifpn,
-                                num_outs=D_bifpn+D_class)
+                                num_outs=5)
         self.regressionModel = RegressionModel(W_bifpn)
         self.classificationModel = ClassificationModel(W_bifpn, num_classes=num_classes)
         self.anchors = Anchors()
@@ -56,7 +56,7 @@ class EfficientDet(nn.Module):
 
     def forward(self, inputs):
         features = self.efficientnet(inputs)
-        features = self.BIFPN(features[2:])
+        features = self.BIFPN(features[-5:])
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
         classification = torch.cat([self.classificationModel(feature) for feature in features], dim=1)
         anchors = self.anchors(inputs)

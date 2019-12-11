@@ -34,7 +34,7 @@ parser.add_argument('--num_worker', default=12, type=int,
                     help='Number of workers used in dataloading')
 parser.add_argument('--num_classes', default=21, type=int,
                     help='Number of class used in model')
-parser.add_argument('--device', default=[0, 1], type=list,
+parser.add_argument('--device', default=[0], type=list,
                     help='Use CUDA to train model')
 parser.add_argument('--grad_accumulation_steps', default=1, type=int,
                     help='Number of gradient accumulation steps')
