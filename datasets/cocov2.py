@@ -65,13 +65,14 @@ class CocoDataset(Dataset):
         target = np.array(annot)
         bbox = target[:, :4]
         labels = target[:, 4]
+        labels = np.array(labels, dtype=np.int)
         if self.transform is not None:
             annotation = {'image': img, 'bboxes': bbox, 'category_id': labels}
             augmentation = self.transform(**annotation)
             img = augmentation['image']
             bbox = augmentation['bboxes']
             labels = augmentation['category_id']
-
+        
         return {'image': img, 'bboxes': bbox, 'category_id': labels} 
 
 
