@@ -61,7 +61,7 @@ class COCOAnnotationTransform(object):
                 bbox[2] += bbox[0]
                 bbox[3] += bbox[1]
                 label_idx = self.label_map[obj['category_id']] - 1
-                # final_box = list(np.array(bbox)/scale)
+                final_box = list(np.array(bbox))
                 final_box.append(label_idx)
                 res += [final_box]  # [xmin, ymin, xmax, ymax, label_idx]
             else:

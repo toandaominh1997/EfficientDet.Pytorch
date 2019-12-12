@@ -10,7 +10,8 @@ from torch.utils.data import DataLoader
 
 from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
-from datasets import VOCDetection, COCODetection, get_augumentation, detection_collate
+from datasets import VOCDetection, COCODetection, CocoDataset, get_augumentation, detection_collate
+from utils import EFFICIENTDET
 
 
 parser = argparse.ArgumentParser(
@@ -22,17 +23,18 @@ parser.add_argument('--dataset_root', default='/root/data/VOCdevkit/',
                     help='Dataset root directory path [/root/data/VOCdevkit/, /root/data/coco/]')
 parser.add_argument('--network', default='efficientdet-d0', type=str,
                     help='efficientdet-[d0, d1, ..]')
+
 parser.add_argument('--resume', default=None, type=str,
                     help='Checkpoint state_dict file to resume training from')
 parser.add_argument('--num_epoch', default=500, type=int,
                     help='Num epoch for training')
 parser.add_argument('--batch_size', default=32, type=int,
                     help='Batch size for training')
-parser.add_argument('--num_worker', default=12, type=int,
+parser.add_argument('--num_worker', default=8, type=int,
                     help='Number of workers used in dataloading')
-parser.add_argument('--num_classes', default=21, type=int,
+parser.add_argument('--num_classes', default=80, type=int,
                     help='Number of class used in model')
-parser.add_argument('--device', default=[0, 1], type=list,
+parser.add_argument('--device', default=[0], type=list,
                     help='Use CUDA to train model')
 parser.add_argument('--grad_accumulation_steps', default=1, type=int,
                     help='Number of gradient accumulation steps')
@@ -50,6 +52,7 @@ args = parser.parse_args()
 if not os.path.exists(args.save_folder):
     os.mkdir(args.save_folder)
 
+
 def prepare_device(device):
     n_gpu_use = len(device)
     n_gpu = torch.cuda.device_count()
@@ -57,12 +60,15 @@ def prepare_device(device):
         print("Warning: There\'s no GPU available on this machine, training will be performed on CPU.")
         n_gpu_use = 0
     if n_gpu_use > n_gpu:
-        print("Warning: The number of GPU\'s configured to use is {}, but only {} are available on this machine.".format(n_gpu_use, n_gpu))
+        print("Warning: The number of GPU\'s configured to use is {}, but only {} are available on this machine.".format(
+            n_gpu_use, n_gpu))
         n_gpu_use = n_gpu
     list_ids = device
-    device = torch.device('cuda:{}'.format(device[0]) if n_gpu_use > 0 else 'cpu')
-    
+    device = torch.device('cuda:{}'.format(
+        device[0]) if n_gpu_use > 0 else 'cpu')
+
     return device, list_ids
+
 
 def get_state_dict(model):
     if type(model) == torch.nn.DataParallel:
@@ -70,31 +76,42 @@ def get_state_dict(model):
     else:
         state_dict = model.state_dict()
     return state_dict
+
+
 checkpoint = []
 if(args.resume is not None):
     resume_path = str(args.resume)
     print("Loading checkpoint: {} ...".format(resume_path))
-    checkpoint = torch.load(args.resume, map_location=lambda storage, loc: storage)
+    checkpoint = torch.load(
+        args.resume, map_location=lambda storage, loc: storage)
+    args.num_classes = checkpoint['num_classes']
+    args.network = checkpoint['network']
 
 train_dataset = []
-if(args.dataset=='VOC'):
-    train_dataset = VOCDetection(root = args.dataset_root,
-                                transform = get_augumentation(phase='train'))
-elif(args.dataset=='COCO'):
-    train_dataset = COCODetection(root = args.dataset_root,
-                                transform = get_augumentation(phase='train'))
-train_dataloader = DataLoader(train_dataset, 
-                            batch_size=args.batch_size,
-                            num_workers=args.num_worker,
-                            shuffle=True,
-                            collate_fn=detection_collate,
-                            pin_memory=True)
+if(args.dataset == 'VOC'):
+    train_dataset = VOCDetection(root=args.dataset_root,
+                                 transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
 
-model = EfficientDet(num_classes = args.num_classes, network = args.network)
+elif(args.dataset == 'COCO'):
+    train_dataset = CocoDataset(root_dir=args.dataset_root, set_name='train2017', transform=get_augumentation(
+        phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
+    # train_dataset = COCODetection(root=args.dataset_root,
+    #                               transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
+
+train_dataloader = DataLoader(train_dataset,
+                              batch_size=args.batch_size,
+                              num_workers=args.num_worker,
+                              shuffle=True,
+                              collate_fn=detection_collate,
+                              pin_memory=True)
+
+model = EfficientDet(num_classes=args.num_classes,
+                     network=args.network,
+                     W_bifpn=EFFICIENTDET[args.network]['W_bifpn'],
+                     D_bifpn=EFFICIENTDET[args.network]['D_bifpn'],
+                     D_class=EFFICIENTDET[args.network]['D_class'],
+                     )
 if(args.resume is not None):
-    # num_class = checkpoint['num_classes']
-    # network = checkpoint['network']
-    model = EfficientDet(num_classes = 21, network = 'efficientdet-d0')
     model.load_state_dict(checkpoint['state_dict'])
 device, device_ids = prepare_device(args.device)
 model = model.to(device)
@@ -102,9 +119,11 @@ if(len(device_ids) > 1):
     model = torch.nn.DataParallel(model, device_ids=device_ids)
 
 optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer, patience=3, verbose=True)
 # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=args.lr, max_lr=0.1)
 criterion = FocalLoss()
+
 
 def train():
     model.train()
@@ -119,7 +138,8 @@ def train():
             images = images.to(device)
             annotations = annotations.to(device)
             classification, regression, anchors = model(images)
-            classification_loss, regression_loss = criterion(classification, regression, anchors, annotations)
+            classification_loss, regression_loss = criterion(
+                classification, regression, anchors, annotations, device=device)
             classification_loss = classification_loss.mean()
             regression_loss = regression_loss.mean()
             loss = classification_loss + regression_loss
@@ -131,9 +151,9 @@ def train():
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
                 optimizer.step()
                 optimizer.zero_grad()
-            
+
             total_loss.append(loss.item())
-            if(iteration%100==0):
+            if(iteration % 100 == 0):
                 print('{} iteration: training ...'.format(iteration))
                 ans = {
                     'epoch': epoch,
@@ -144,12 +164,12 @@ def train():
                 }
                 for key, value in ans.items():
                     print('    {:15s}: {}'.format(str(key), value))
-                
-            iteration+=1
+
+            iteration += 1
         scheduler.step(np.mean(total_loss))
         result = {
             'time': time.time() - start,
-            'loss': np.mean(total_loss)            
+            'loss': np.mean(total_loss)
         }
         for key, value in result.items():
             print('    {:15s}: {}'.format(str(key), value))
@@ -160,7 +180,8 @@ def train():
             'network': args.network,
             'state_dict': get_state_dict(model)
         }
-        torch.save(state, './weights/checkpoint_{}_{}.pth'.format(args.network, epoch))
+        torch.save(
+            state, './weights/checkpoint_{}_{}_{}.pth'.format(args.dataset, args.network, epoch))
     state = {
         'arch': arch,
         'num_class': args.num_class,
@@ -168,6 +189,7 @@ def train():
         'state_dict': get_state_dict(model)
     }
     torch.save(state, './weights/Final_{}.pth'.format(args.network))
+
 
 if __name__ == '__main__':
     train()

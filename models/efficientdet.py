@@ -17,20 +17,22 @@ MODEL_MAP = {
 class EfficientDet(nn.Module):
     def __init__(self,
                  num_classes,
-                 levels=3,
-                 num_channels=128,
                  network = 'efficientdet-d0',
+                 D_bifpn=3,
+                 W_bifpn=88,
+                 D_class=3,
                  is_training=True,
                  threshold=0.5,
                  iou_threshold=0.5):
         super(EfficientDet, self).__init__()
         self.efficientnet = EfficientNet.from_pretrained(MODEL_MAP[network])
         self.is_training = is_training
-        self.BIFPN = BIFPN(in_channels=self.efficientnet.get_list_features()[2:],
-                                out_channels=256,
+        self.BIFPN = BIFPN(in_channels=self.efficientnet.get_list_features()[-5:],
+                                out_channels=W_bifpn,
+                                stack=D_bifpn,
                                 num_outs=5)
-        self.regressionModel = RegressionModel(256)
-        self.classificationModel = ClassificationModel(256, num_classes=num_classes)
+        self.regressionModel = RegressionModel(W_bifpn)
+        self.classificationModel = ClassificationModel(W_bifpn, num_classes=num_classes)
         self.anchors = Anchors()
         self.regressBoxes = BBoxTransform()
         self.clipBoxes = ClipBoxes()
@@ -54,7 +56,7 @@ class EfficientDet(nn.Module):
 
     def forward(self, inputs):
         features = self.efficientnet(inputs)
-        features = self.BIFPN(features[2:])
+        features = self.BIFPN(features[-5:])
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
         classification = torch.cat([self.classificationModel(feature) for feature in features], dim=1)
         anchors = self.anchors(inputs)

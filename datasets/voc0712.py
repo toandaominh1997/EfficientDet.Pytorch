@@ -118,7 +118,6 @@ class VOCDetection(data.Dataset):
             img = augmentation['image']
             bbox = augmentation['bboxes']
             labels = augmentation['category_id']
-
         return {'image': img, 'bboxes': bbox, 'category_id': labels} 
 
     def __len__(self):
