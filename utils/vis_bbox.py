@@ -55,7 +55,7 @@ def vis_bbox(img, bbox, label=None, score=None,
     ax.axis('off')
     # If there is no bounding box to display, visualize the image and exit.
     if len(bbox) == 0:
-        return ax
+        return fig, ax
 
     if instance_colors is None:
         # Red
