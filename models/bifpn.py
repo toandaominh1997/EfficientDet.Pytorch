@@ -189,8 +189,12 @@ class BiFPNModule(nn.Module):
         kk=0
         pathtd = []
         for i in range(levels - 1, 0, -1):
-            pathtd.append(w1[0, kk] * inputs[i - 1] + w1[1, kk] * F.interpolate(
-                inputs[i], scale_factor=2, mode='nearest'))
+            if i == levels - 1:
+                pathtd.append(w1[0, kk] * inputs[i - 1] + w1[1, kk] * F.interpolate(
+                    inputs[i], scale_factor=2, mode='nearest'))
+            else:
+                pathtd.append(w1[0, kk] * inputs[i - 1] + w1[1, kk] * F.interpolate(
+                    pathtd[-1], scale_factor=2, mode='nearest'))
             pathtd[-1] = self.bifpn_convs[kk](pathtd[-1])
             kk = kk + 1
         jj = kk
