@@ -83,3 +83,10 @@ class EfficientDet(nn.Module):
         for layer in self.modules():
             if isinstance(layer, nn.BatchNorm2d):
                 layer.eval()
+
+
+if __name__ == '__main__':
+    net = EfficientDet(num_classes=21)
+    x = torch.rand(1, 3, 640, 640)
+    out = net(x)
+    print([o.shape for o in out])

@@ -187,24 +187,20 @@ class BiFPNModule(nn.Module):
         w2 /= torch.sum(w2, dim=0) + eps
         # build top-down
         kk=0
-        pathtd = inputs
-        inputs_clone=[]
-        for in_tensor in inputs:
-            inputs_clone.append(in_tensor.clone())
+        pathtd = []
         for i in range(levels - 1, 0, -1):
-            pathtd[i - 1] = w1[0,kk]*pathtd[i - 1] + w1[1,kk]*F.interpolate(
-                pathtd[i], scale_factor=2, mode='nearest')
-            pathtd[i - 1] = self.bifpn_convs[kk](pathtd[i - 1])
-            kk=kk+1
-        jj=kk
+            pathtd.append(w1[0, kk] * inputs[i - 1] + w1[1, kk] * F.interpolate(
+                inputs[i], scale_factor=2, mode='nearest'))
+            pathtd[-1] = self.bifpn_convs[kk](pathtd[-1])
+            kk = kk + 1
+        jj = kk
+        pathtd = pathtd[::-1]
         # build down-top
         for i in range(0, levels - 2, 1):
             pathtd[i + 1] = w2[0, i] * pathtd[i + 1] + w2[1, i] * F.max_pool2d(pathtd[i], kernel_size=2) + w2[2, i] * \
-                            inputs_clone[i + 1]
+                            inputs[i + 1]
             pathtd[i + 1] = self.bifpn_convs[jj](pathtd[i + 1])
-            jj=jj+1
-
-        pathtd[levels - 1] = w1[0, kk] * pathtd[levels - 1] + w1[1, kk] * F.max_pool2d(pathtd[levels - 2],
-                                                                                       kernel_size=2)
+            jj = jj + 1
+        pathtd.append(w1[0, kk] * inputs[levels - 1] + w1[1, kk] * F.max_pool2d(pathtd[levels - 2], kernel_size=2))
         pathtd[levels - 1] = self.bifpn_convs[jj](pathtd[levels - 1])
         return pathtd
