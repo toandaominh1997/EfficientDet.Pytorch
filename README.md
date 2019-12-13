@@ -92,7 +92,7 @@ python train.py --model_name effcientdet-d0 # Example
 
   - With VOC Dataset:
   ```Shell
-  python train.py --dataset_root /root/data/VOCdevkit/ --model_name effcientdet-d0 # Example
+  python train.py --dataset_root /root/data/VOCdevkit/ --n effcientdet-d0 # Example
   ```
   - With COCO Dataset: Support soon
 
