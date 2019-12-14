@@ -12,7 +12,10 @@ from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
 from datasets import VOCDetection, COCODetection, CocoDataset, get_augumentation, detection_collate
 from utils import EFFICIENTDET
+from eval import evaluate_coco
 
+from torchvision import transforms
+from datasets.augmentation import Resizer, collater, Normalizer, Augmenter
 
 parser = argparse.ArgumentParser(
     description='EfficientDet Training With Pytorch')
@@ -30,11 +33,11 @@ parser.add_argument('--num_epoch', default=500, type=int,
                     help='Num epoch for training')
 parser.add_argument('--batch_size', default=32, type=int,
                     help='Batch size for training')
-parser.add_argument('--num_worker', default=8, type=int,
+parser.add_argument('--num_worker', default=16, type=int,
                     help='Number of workers used in dataloading')
 parser.add_argument('--num_classes', default=80, type=int,
                     help='Number of class used in model')
-parser.add_argument('--device', default=[0], type=list,
+parser.add_argument('--device', default=[0, 1], type=list,
                     help='Use CUDA to train model')
 parser.add_argument('--grad_accumulation_steps', default=1, type=int,
                     help='Number of gradient accumulation steps')
@@ -78,31 +81,33 @@ def get_state_dict(model):
     return state_dict
 
 
+start_epoch = 1
 checkpoint = []
 if(args.resume is not None):
     resume_path = str(args.resume)
     print("Loading checkpoint: {} ...".format(resume_path))
     checkpoint = torch.load(
         args.resume, map_location=lambda storage, loc: storage)
-    args.num_classes = checkpoint['num_classes']
+    args.num_classes = checkpoint['num_class']
     args.network = checkpoint['network']
 
 train_dataset = []
 if(args.dataset == 'VOC'):
+    # train_dataset = VOCDetection(root=args.dataset_root,
+    #                              transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
     train_dataset = VOCDetection(root=args.dataset_root,
-                                 transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
-
+                                 transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
 elif(args.dataset == 'COCO'):
     train_dataset = CocoDataset(root_dir=args.dataset_root, set_name='train2017', transform=get_augumentation(
         phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
-    # train_dataset = COCODetection(root=args.dataset_root,
-    #                               transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
+    valid_dataset = CocoDataset(root_dir=args.dataset_root, set_name='val2017', transform=get_augumentation(
+        phase='test', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
 
 train_dataloader = DataLoader(train_dataset,
                               batch_size=args.batch_size,
                               num_workers=args.num_worker,
                               shuffle=True,
-                              collate_fn=detection_collate,
+                              collate_fn=collater,
                               pin_memory=True)
 
 model = EfficientDet(num_classes=args.num_classes,
@@ -110,7 +115,10 @@ model = EfficientDet(num_classes=args.num_classes,
                      W_bifpn=EFFICIENTDET[args.network]['W_bifpn'],
                      D_bifpn=EFFICIENTDET[args.network]['D_bifpn'],
                      D_class=EFFICIENTDET[args.network]['D_class'],
+                     threshold=0.05,
+                     iou_threshold=0.5
                      )
+
 if(args.resume is not None):
     model.load_state_dict(checkpoint['state_dict'])
 device, device_ids = prepare_device(args.device)
@@ -119,20 +127,32 @@ if(len(device_ids) > 1):
     model = torch.nn.DataParallel(model, device_ids=device_ids)
 
 optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+# optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, patience=3, verbose=True)
 # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=args.lr, max_lr=0.1)
 criterion = FocalLoss()
 
+def adjust_learning_rate(optimizer, gamma, step):
+    """Sets the learning rate to the initial LR decayed by 10 at every
+        specified step
+    # Adapted from PyTorch Imagenet example:
+    # https://github.com/pytorch/examples/blob/master/imagenet/main.py
+    """
+    lr = args.lr * (gamma ** (step))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
 
 def train():
-    model.train()
     iteration = 1
+    step_index = 0
     for epoch in range(args.num_epoch):
         print("{} epoch: \t start training....".format(epoch))
         start = time.time()
         result = {}
         total_loss = []
+        model.is_training = True
+        model.train()
         optimizer.zero_grad()
         for idx, (images, annotations) in enumerate(train_dataloader):
             images = images.to(device)
@@ -153,7 +173,7 @@ def train():
                 optimizer.zero_grad()
 
             total_loss.append(loss.item())
-            if(iteration % 100 == 0):
+            if(iteration % 300 == 0):
                 print('{} iteration: training ...'.format(iteration))
                 ans = {
                     'epoch': epoch,
@@ -162,15 +182,21 @@ def train():
                     'reg_loss': regression_loss.item(),
                     'mean_loss': np.mean(total_loss)
                 }
+
                 for key, value in ans.items():
                     print('    {:15s}: {}'.format(str(key), value))
 
             iteration += 1
         scheduler.step(np.mean(total_loss))
+        # if((epoch+1)%20==0):
+        #     print('adjust learning rate')
+        #     step_index+=1
+        #     adjust_learning_rate(optimizer, gamma=args.gamma, step=step_index)
         result = {
             'time': time.time() - start,
             'loss': np.mean(total_loss)
         }
+
         for key, value in result.items():
             print('    {:15s}: {}'.format(str(key), value))
         arch = type(model).__name__
@@ -182,12 +208,22 @@ def train():
         }
         torch.save(
             state, './weights/checkpoint_{}_{}_{}.pth'.format(args.dataset, args.network, epoch))
+        # if(args.dataset == 'COCO'):
+        #     print('Start evaluation ...')
+        #     model.is_training = False
+        #     model.eval()
+        #     evaluate_coco(dataset=valid_dataset, model=model,
+        #                   eff_size=EFFICIENTDET[args.network]['input_size'], device=device, threshold=0.05)
+        #     model.is_training = True
+        #     model.train()
+
     state = {
         'arch': arch,
         'num_class': args.num_class,
         'network': args.network,
         'state_dict': get_state_dict(model)
     }
+
     torch.save(state, './weights/Final_{}.pth'.format(args.network))
 
 

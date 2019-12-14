@@ -6,7 +6,7 @@ from models import EfficientDet
 from torchvision import transforms
 import numpy as np
 import skimage
-from datasets import get_augumentation, VOC_CLASSES
+from datasets import get_augumentation, VOC_CLASSES, COCO_CLASSES
 from timeit import default_timer as timer
 import argparse
 import copy
@@ -38,10 +38,9 @@ class Detect(object):
         dir_name: Folder or image_file
     """
 
-    def __init__(self, weights, num_class=21, network='efficientdet-d0', size_image=(512, 512)):
+    def __init__(self, weights, num_class=21, network='efficientdet-d0'):
         super(Detect,  self).__init__()
         self.weights = weights
-        self.size_image = size_image
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else 'cpu')
         self.transform = get_augumentation(phase='test')
@@ -51,13 +50,14 @@ class Detect(object):
                 self.weights, map_location=lambda storage, loc: storage)
             num_class = checkpoint['num_class']
             network = checkpoint['network']
-
+        self.size_image = EFFICIENTDET[network]['input_size']
         self.model = EfficientDet(num_classes=num_class,
                      network=network,
                      W_bifpn=EFFICIENTDET[network]['W_bifpn'],
                      D_bifpn=EFFICIENTDET[network]['D_bifpn'],
                      D_class=EFFICIENTDET[network]['D_class'],
-                     is_training=False
+                     is_training=False,
+                     threshold=args.threshold
                      )
 
         if(self.weights is not None):
@@ -83,10 +83,10 @@ class Detect(object):
             colors = list()
             for j in range(scores.shape[0]):
                 bbox = transformed_anchors[[j], :][0].data.cpu().numpy()
-                x1 = int(bbox[0]*origin_img.shape[1]/self.size_image[1])
-                y1 = int(bbox[1]*origin_img.shape[0]/self.size_image[0])
-                x2 = int(bbox[2]*origin_img.shape[1]/self.size_image[1])
-                y2 = int(bbox[3]*origin_img.shape[0]/self.size_image[0])
+                x1 = int(bbox[0]*origin_img.shape[1]/self.size_image)
+                y1 = int(bbox[1]*origin_img.shape[0]/self.size_image)
+                x2 = int(bbox[2]*origin_img.shape[1]/self.size_image)
+                y2 = int(bbox[3]*origin_img.shape[0]/self.size_image)
                 bboxes.append([x1, y1, x2, y2])
                 label_name = VOC_CLASSES[int(classification[[j]])]
                 labels.append(label_name)

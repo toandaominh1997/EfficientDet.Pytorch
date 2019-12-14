@@ -13,56 +13,43 @@ from utils import EFFICIENTDET
 from models import EfficientDet
 from tqdm import tqdm
 
-parser = argparse.ArgumentParser(
-    description='EfficientDet Training With Pytorch')
-parser.add_argument('--dataset_root', default='/root/data/VOCdevkit/',
-                    help='Dataset root directory path [/root/data/VOCdevkit/, /root/data/coco/]')
-parser.add_argument('--resume', default=None, type=str,
-                    help='Checkpoint state_dict file to resume training from')
-args = parser.parse_args()
 
-
-def evaluate_coco(dataset, model, threshold=0.05):
-
+def evaluate_coco(dataset, model, device, eff_size, threshold=0.05):
+    print('is_training: ', model.is_training)
     model.eval()
-
     with torch.no_grad():
-
         # start collecting results
         results = []
         image_ids = []
 
-        for index in tqdm(range(len(dataset))):
+        for index in range(len(dataset)):
+            img_shape = dataset.load_image(index).shape
             data = dataset[index]
-            scale = 1.0
-            images = data['image'].permute(2, 0, 1).unsqueeze(0).cuda()
-            print('images: ', images.size())
+            images = data['image'].unsqueeze(0).to(device)
             # run network
-            scores, labels, boxes = model(data['image'].permute(
-                2, 0, 1).cuda().float().unsqueeze(dim=0))
+            scores, labels, boxes = model(images)
             scores = scores.cpu()
             labels = labels.cpu()
             boxes = boxes.cpu()
 
+            print('scores: ', scores.size())
+            print('boxes: ', boxes.size())
             # correct boxes for image scale
-            boxes /= scale
+            boxes[:, 0] = boxes[:, 0]*img_shape[1] / eff_size
+            boxes[:, 1] = boxes[:, 1]*img_shape[0] / eff_size
+            boxes[:, 2] = boxes[:, 2]*img_shape[1] / eff_size
+            boxes[:, 3] = boxes[:, 3]*img_shape[0] / eff_size
 
             if boxes.shape[0] > 0:
                 # change to (x, y, w, h) (MS COCO standard)
                 boxes[:, 2] -= boxes[:, 0]
                 boxes[:, 3] -= boxes[:, 1]
-
-                # compute predicted labels and scores
-                # for box, score, label in zip(boxes[0], scores[0], labels[0]):
                 for box_id in range(boxes.shape[0]):
                     score = float(scores[box_id])
                     label = int(labels[box_id])
                     box = boxes[box_id, :]
-
-                    # scores are sorted, so we can break
                     if score < threshold:
                         break
-
                     # append detection for each positively labeled class
                     image_result = {
                         'image_id': dataset.image_ids[index],
@@ -70,18 +57,12 @@ def evaluate_coco(dataset, model, threshold=0.05):
                         'score': float(score),
                         'bbox': box.tolist(),
                     }
-
-                    # append detection to results
                     results.append(image_result)
-
-            # append image to list of processed images
             image_ids.append(dataset.image_ids[index])
 
-            # print progress
-            print('{}/{}'.format(index, len(dataset)), end='\r')
-
         if not len(results):
-            return
+            print('Not result in Evaluation')
+            return 0
 
         # write output
         json.dump(results, open('{}_bbox_results.json'.format(
@@ -100,23 +81,39 @@ def evaluate_coco(dataset, model, threshold=0.05):
         coco_eval.summarize()
 
 
-checkpoint = []
-if(args.resume is not None):
-    resume_path = str(args.resume)
-    print("Loading checkpoint: {} ...".format(resume_path))
-    checkpoint = torch.load(
-        args.resume, map_location=lambda storage, loc: storage)
-    num_class = checkpoint['num_class']
-    network = checkpoint['network']
-dataset = CocoDataset(root_dir=args.dataset_root, set_name='train2017', transform=get_augumentation(
-    phase='test', width=EFFICIENTDET[network]['input_size'], height=EFFICIENTDET[network]['input_size']))
-model = EfficientDet(num_classes=num_class,
-                     network=network,
-                     W_bifpn=EFFICIENTDET[network]['W_bifpn'],
-                     D_bifpn=EFFICIENTDET[network]['D_bifpn'],
-                     D_class=EFFICIENTDET[network]['D_class'],
-                     is_training=False
-                     )
-
 if __name__ == '__main__':
-    evaluate_coco(dataset, model)
+    parser = argparse.ArgumentParser(
+        description='EfficientDet Training With Pytorch')
+    parser.add_argument('--dataset_root', default='/root/data/VOCdevkit/',
+                        help='Dataset root directory path [/root/data/VOCdevkit/, /root/data/coco/]')
+    parser.add_argument('--weight', default=None, type=str,
+                        help='Checkpoint state_dict file to resume training from')
+    args = parser.parse_args()
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    checkpoint = []
+    if(args.weight is not None):
+        resume_path = str(args.weight)
+        print("Loading checkpoint: {} ...".format(resume_path))
+        checkpoint = torch.load(
+            args.weight, map_location=lambda storage, loc: storage)
+        num_class = checkpoint['num_class']
+        network = checkpoint['network']
+    dataset = CocoDataset(root_dir=args.dataset_root, set_name='val2017', transform=get_augumentation(
+        phase='test', width=EFFICIENTDET[network]['input_size'], height=EFFICIENTDET[network]['input_size']))
+
+    model = EfficientDet(num_classes=num_class,
+                         network=network,
+                         W_bifpn=EFFICIENTDET[network]['W_bifpn'],
+                         D_bifpn=EFFICIENTDET[network]['D_bifpn'],
+                         D_class=EFFICIENTDET[network]['D_class'],
+                         is_training=False,
+                         threshold=0.05,
+                         iou_threshold=0.5
+                         )
+    
+    if(args.weight is not None):
+        state_dict = checkpoint['state_dict']
+        model.load_state_dict(state_dict)
+    model = model.to(device)
+    evaluate_coco(dataset=dataset, model=model, eff_size=EFFICIENTDET[network]['input_size'],
+                  device=device, threshold=0.05)
