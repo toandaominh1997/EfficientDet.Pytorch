@@ -10,12 +10,10 @@ from torch.utils.data import DataLoader
 
 from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
-from datasets import VOCDetection, COCODetection, CocoDataset, get_augumentation, detection_collate
+from datasets import VOCDetection, COCODetection, CocoDataset, get_augumentation, detection_collate, collate_fn
 from utils import EFFICIENTDET
 from eval import evaluate_coco
 
-from torchvision import transforms
-from datasets.augmentation import Resizer, collater, Normalizer, Augmenter
 
 parser = argparse.ArgumentParser(
     description='EfficientDet Training With Pytorch')
@@ -33,11 +31,11 @@ parser.add_argument('--num_epoch', default=500, type=int,
                     help='Num epoch for training')
 parser.add_argument('--batch_size', default=32, type=int,
                     help='Batch size for training')
-parser.add_argument('--num_worker', default=16, type=int,
+parser.add_argument('--num_worker', default=1, type=int,
                     help='Number of workers used in dataloading')
 parser.add_argument('--num_classes', default=80, type=int,
                     help='Number of class used in model')
-parser.add_argument('--device', default=[0, 1], type=list,
+parser.add_argument('--device', default=[0], type=list,
                     help='Use CUDA to train model')
 parser.add_argument('--grad_accumulation_steps', default=1, type=int,
                     help='Number of gradient accumulation steps')
@@ -93,10 +91,10 @@ if(args.resume is not None):
 
 train_dataset = []
 if(args.dataset == 'VOC'):
-    # train_dataset = VOCDetection(root=args.dataset_root,
-    #                              transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
     train_dataset = VOCDetection(root=args.dataset_root,
-                                 transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+                                 transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
+    # train_dataset = VOCDetection(root=args.dataset_root,
+    #                              transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
 elif(args.dataset == 'COCO'):
     train_dataset = CocoDataset(root_dir=args.dataset_root, set_name='train2017', transform=get_augumentation(
         phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
@@ -107,7 +105,7 @@ train_dataloader = DataLoader(train_dataset,
                               batch_size=args.batch_size,
                               num_workers=args.num_worker,
                               shuffle=True,
-                              collate_fn=collater,
+                              collate_fn=collate_fn,
                               pin_memory=True)
 
 model = EfficientDet(num_classes=args.num_classes,
@@ -124,7 +122,7 @@ if(args.resume is not None):
 device, device_ids = prepare_device(args.device)
 model = model.to(device)
 if(len(device_ids) > 1):
-    model = torch.nn.DataParallel(model, device_ids=device_ids)
+    model = torch.nn.DataParallel(model, device_ids=device_ids).cuda()
 
 optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
@@ -144,87 +142,93 @@ def adjust_learning_rate(optimizer, gamma, step):
         param_group['lr'] = lr
 
 def train():
-    iteration = 1
-    step_index = 0
-    for epoch in range(args.num_epoch):
-        print("{} epoch: \t start training....".format(epoch))
-        start = time.time()
-        result = {}
-        total_loss = []
-        model.is_training = True
-        model.train()
-        optimizer.zero_grad()
-        for idx, (images, annotations) in enumerate(train_dataloader):
-            images = images.to(device)
-            annotations = annotations.to(device)
-            classification, regression, anchors = model(images)
-            classification_loss, regression_loss = criterion(
-                classification, regression, anchors, annotations, device=device)
-            classification_loss = classification_loss.mean()
-            regression_loss = regression_loss.mean()
-            loss = classification_loss + regression_loss
-            if bool(loss == 0):
-                print('loss equal zero(0)')
-                continue
-            loss.backward()
-            if (idx+1) % args.grad_accumulation_steps == 0:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
-                optimizer.step()
-                optimizer.zero_grad()
+    for idx, (inputs, loc_targets, cls_targets) in enumerate(train_dataloader):
+        print(inputs.size())
+        print(loc_targets.size())
+        print(cls_targets.size())
+        break
+# def train():
+#     iteration = 1
+#     step_index = 0
+#     for epoch in range(args.num_epoch):
+#         print("{} epoch: \t start training....".format(epoch))
+#         start = time.time()
+#         result = {}
+#         total_loss = []
+#         model.is_training = True
+#         model.train()
+#         optimizer.zero_grad()
+#         for idx, (images, annotations) in enumerate(train_dataloader):
+#             images = images.to(device)
+#             annotations = annotations.to(device)
+#             classification, regression, anchors = model(images)
+#             classification_loss, regression_loss = criterion(
+#                 classification, regression, anchors, annotations, device=device)
+#             classification_loss = classification_loss.mean()
+#             regression_loss = regression_loss.mean()
+#             loss = classification_loss + regression_loss
+#             if bool(loss == 0):
+#                 print('loss equal zero(0)')
+#                 continue
+#             loss.backward()
+#             if (idx+1) % args.grad_accumulation_steps == 0:
+#                 torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
+#                 optimizer.step()
+#                 optimizer.zero_grad()
 
-            total_loss.append(loss.item())
-            if(iteration % 300 == 0):
-                print('{} iteration: training ...'.format(iteration))
-                ans = {
-                    'epoch': epoch,
-                    'iteration': iteration,
-                    'cls_loss': classification_loss.item(),
-                    'reg_loss': regression_loss.item(),
-                    'mean_loss': np.mean(total_loss)
-                }
+#             total_loss.append(loss.item())
+#             if(iteration % 300 == 0):
+#                 print('{} iteration: training ...'.format(iteration))
+#                 ans = {
+#                     'epoch': epoch,
+#                     'iteration': iteration,
+#                     'cls_loss': classification_loss.item(),
+#                     'reg_loss': regression_loss.item(),
+#                     'mean_loss': np.mean(total_loss)
+#                 }
 
-                for key, value in ans.items():
-                    print('    {:15s}: {}'.format(str(key), value))
+#                 for key, value in ans.items():
+#                     print('    {:15s}: {}'.format(str(key), value))
 
-            iteration += 1
-        scheduler.step(np.mean(total_loss))
-        # if((epoch+1)%20==0):
-        #     print('adjust learning rate')
-        #     step_index+=1
-        #     adjust_learning_rate(optimizer, gamma=args.gamma, step=step_index)
-        result = {
-            'time': time.time() - start,
-            'loss': np.mean(total_loss)
-        }
+#             iteration += 1
+#         scheduler.step(np.mean(total_loss))
+#         # if((epoch+1)%20==0):
+#         #     print('adjust learning rate')
+#         #     step_index+=1
+#         #     adjust_learning_rate(optimizer, gamma=args.gamma, step=step_index)
+#         result = {
+#             'time': time.time() - start,
+#             'loss': np.mean(total_loss)
+#         }
 
-        for key, value in result.items():
-            print('    {:15s}: {}'.format(str(key), value))
-        arch = type(model).__name__
-        state = {
-            'arch': arch,
-            'num_class': args.num_classes,
-            'network': args.network,
-            'state_dict': get_state_dict(model)
-        }
-        torch.save(
-            state, './weights/checkpoint_{}_{}_{}.pth'.format(args.dataset, args.network, epoch))
-        # if(args.dataset == 'COCO'):
-        #     print('Start evaluation ...')
-        #     model.is_training = False
-        #     model.eval()
-        #     evaluate_coco(dataset=valid_dataset, model=model,
-        #                   eff_size=EFFICIENTDET[args.network]['input_size'], device=device, threshold=0.05)
-        #     model.is_training = True
-        #     model.train()
+#         for key, value in result.items():
+#             print('    {:15s}: {}'.format(str(key), value))
+#         arch = type(model).__name__
+#         state = {
+#             'arch': arch,
+#             'num_class': args.num_classes,
+#             'network': args.network,
+#             'state_dict': get_state_dict(model)
+#         }
+#         torch.save(
+#             state, './weights/checkpoint_{}_{}_{}.pth'.format(args.dataset, args.network, epoch))
+#         # if(args.dataset == 'COCO'):
+#         #     print('Start evaluation ...')
+#         #     model.is_training = False
+#         #     model.eval()
+#         #     evaluate_coco(dataset=valid_dataset, model=model,
+#         #                   eff_size=EFFICIENTDET[args.network]['input_size'], device=device, threshold=0.05)
+#         #     model.is_training = True
+#         #     model.train()
 
-    state = {
-        'arch': arch,
-        'num_class': args.num_class,
-        'network': args.network,
-        'state_dict': get_state_dict(model)
-    }
+#     state = {
+#         'arch': arch,
+#         'num_class': args.num_class,
+#         'network': args.network,
+#         'state_dict': get_state_dict(model)
+#     }
 
-    torch.save(state, './weights/Final_{}.pth'.format(args.network))
+#     torch.save(state, './weights/Final_{}.pth'.format(args.network))
 
 
 if __name__ == '__main__':

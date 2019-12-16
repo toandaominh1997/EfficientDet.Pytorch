@@ -47,7 +47,7 @@ class VOCAnnotationTransform(object):
             a list containing lists of bounding boxes  [bbox coords, class name]
         """
         res = []
-        annotations     = np.zeros((0, 5))
+        # annotations     = np.zeros((0, 5))
         for obj in target.iter('object'):
             difficult = int(obj.find('difficult').text) == 1
             if not self.keep_difficult and difficult:
@@ -64,18 +64,9 @@ class VOCAnnotationTransform(object):
                 bndbox.append(cur_pt)
             label_idx = self.class_to_ind[name]
             bndbox.append(label_idx)
-            annotation        = np.zeros((1, 5))
-            annotation[0, 0] = bndbox[0]
-            annotation[0, 1] = bndbox[1]
-            annotation[0, 2] = bndbox[2]
-            annotation[0, 3] = bndbox[3]
-
-            annotation[0, 4]  = bndbox[4]
-            annotations       = np.append(annotations, annotation, axis=0)
-            # res += [bndbox]  # [xmin, ymin, xmax, ymax, label_ind]
-            # img_id = target.find('filename').text[:-4]
-        return annotations
-        # return res  # [[xmin, ymin, xmax, ymax, label_ind], ... ]
+            res += [bndbox]  # [xmin, ymin, xmax, ymax, label_ind]
+        
+        return res  # [[xmin, ymin, xmax, ymax, label_ind], ... ]
 
 
 class VOCDetection(data.Dataset):
@@ -119,20 +110,18 @@ class VOCDetection(data.Dataset):
 
         if self.target_transform is not None:
             target = self.target_transform(target, width, height)
-        sample = {'img': img, 'annot': target}
-        if self.transform:
-            sample = self.transform(sample)
-
-        return sample
-        # bbox = target[:, :4]
-        # labels = target[:, 4]
-        # if self.transform is not None:
-        #     annotation = {'image': img, 'bboxes': bbox, 'category_id': labels}
-        #     augmentation = self.transform(**annotation)
-        #     img = augmentation['image']
-        #     bbox = augmentation['bboxes']
-        #     labels = augmentation['category_id']
-        # return {'image': img, 'bboxes': bbox, 'category_id': labels}
+        target = np.array(target)
+        bbox = target[:, :4]
+        labels = target[:, 4]
+        if self.transform is not None:
+            annotation = {'image': img, 'bboxes': bbox, 'category_id': labels}
+            augmentation = self.transform(**annotation)
+            img = augmentation['image']
+            bbox = augmentation['bboxes']
+            labels = augmentation['category_id']
+        bbox = np.array(bbox)
+        bbox = torch.from_numpy(bbox)
+        return {'image': img, 'bboxes': bbox, 'category_id': labels}
     def __len__(self):
         return len(self.ids)
     def __num_class__(self):

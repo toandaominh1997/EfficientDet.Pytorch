@@ -8,21 +8,19 @@ import skimage.io
 import skimage.transform
 import skimage.color
 import skimage
-
+from .encoder import DataEncoder
 
 def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=0.):
     list_transforms = []
     if phase == 'train':
         list_transforms.extend([
-            albu.OneOf([
-                albu.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1,
-                                      rotate_limit=15,
-                                      border_mode=cv2.BORDER_CONSTANT, value=0),
-                albu.NoOp()
-            ]),
+            albu.augmentations.transforms.LongestMaxSize(max_size=height, always_apply=True),
+            albu.PadIfNeeded(min_height=height, min_width=width, always_apply=True),
             albu.augmentations.transforms.RandomResizedCrop(
                                  height=height,
-                                 width=width, p=1.0),
+                                 width=width, p=0.5),
+            albu.augmentations.transforms.Flip(),
+            albu.augmentations.transforms.Transpose(),
             albu.OneOf([
                 albu.RandomBrightnessContrast(brightness_limit=0.5,
                                               contrast_limit=0.4),
@@ -36,18 +34,16 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
                                         sat_shift_limit=5),
                 albu.NoOp()
             ]),
-            albu.OneOf([
-                albu.CLAHE(),
-                albu.NoOp()
-            ]),
+            albu.CLAHE(p=0.8),
             albu.HorizontalFlip(p=0.5),
-            albu.VerticalFlip(p=0.5)
+            albu.VerticalFlip(p=0.5),
         ])
     if(phase == 'test'):
         list_transforms.extend([
             albu.Resize(height=height, width=width)
         ])
     list_transforms.extend([
+        albu.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), p=1),
         ToTensor()
     ])
     if(phase == 'test'):
@@ -71,112 +67,29 @@ def detection_collate(batch):
                 annot_padded[idx, :len(annot), 4] = lab
     return (torch.stack(imgs, 0), torch.FloatTensor(annot_padded))
 
+encoder = DataEncoder()
+def collate_fn(batch):
+    '''Pad images and encode targets.
+    As for images are of different sizes, we need to pad them to the same size.
+    Args:
+        batch: (list) of images, cls_targets, loc_targets.
+    Returns:
+        padded images, stacked cls_targets, stacked loc_targets.
+    '''
+    imgs = [x['image'] for x in batch]
+    boxes = [x['bboxes'] for x in batch]
+    labels = [x['category_id'] for x in batch]
 
-def collater(data):
+    h = w = 512
+    num_imgs = len(imgs)
+    inputs = torch.zeros(num_imgs, 3, h, w)
 
-    imgs = [s['img'] for s in data]
-    annots = [s['annot'] for s in data]
-    scales = [s['scale'] for s in data]
-        
-    widths = [int(s.shape[0]) for s in imgs]
-    heights = [int(s.shape[1]) for s in imgs]
-    batch_size = len(imgs)
-
-    max_width = np.array(widths).max()
-    max_height = np.array(heights).max()
-
-    padded_imgs = torch.zeros(batch_size, max_width, max_height, 3)
-
-    for i in range(batch_size):
-        img = imgs[i]
-        padded_imgs[i, :int(img.shape[0]), :int(img.shape[1]), :] = img
-
-    max_num_annots = max(annot.shape[0] for annot in annots)
-    
-    if max_num_annots > 0:
-
-        annot_padded = torch.ones((len(annots), max_num_annots, 5)) * -1
-
-        if max_num_annots > 0:
-            for idx, annot in enumerate(annots):
-                #print(annot.shape)
-                if annot.shape[0] > 0:
-                    annot_padded[idx, :annot.shape[0], :] = annot
-    else:
-        annot_padded = torch.ones((len(annots), 1, 5)) * -1
-
-
-    padded_imgs = padded_imgs.permute(0, 3, 1, 2)
-
-    return (padded_imgs, annot_padded)
-
-class Resizer(object):
-    """Convert ndarrays in sample to Tensors."""
-
-    def __call__(self, sample, side=512):
-        image, annots = sample['img'], sample['annot']
-
-        rows, cols, cns = image.shape
-
-        # smallest_side = min(rows, cols)
-
-        # # rescale the image so the smallest side is min_side
-        # scale = min_side / smallest_side
-
-        # check if the largest side is now greater than max_side, which can happen
-        # when images have a large aspect ratio
-        largest_side = max(rows, cols)
-        scale = side/largest_side
-
-        # if largest_side * scale > max_side:
-        #     scale = max_side / largest_side
-
-        # resize the image with the computed scale
-        image = skimage.transform.resize(image, (int(round(rows*scale)), int(round((cols*scale)))))
-        rows, cols, cns = image.shape
-
-        pad_w = side - rows
-        pad_h = side - cols
-
-        new_image = np.zeros((rows + pad_w, cols + pad_h, cns)).astype(np.float32)
-        new_image[:rows, :cols, :] = image.astype(np.float32)
-        annots[:, :4] *= scale
-
-        return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': scale}
-
-
-class Augmenter(object):
-    """Convert ndarrays in sample to Tensors."""
-
-    def __call__(self, sample, flip_x=0.5):
-
-        if np.random.rand() < flip_x:
-            image, annots = sample['img'], sample['annot']
-            image = image[:, ::-1, :]
-
-            rows, cols, channels = image.shape
-
-            x1 = annots[:, 0].copy()
-            x2 = annots[:, 2].copy()
-            
-            x_tmp = x1.copy()
-
-            annots[:, 0] = cols - x2
-            annots[:, 2] = cols - x_tmp
-
-            sample = {'img': image, 'annot': annots}
-
-        return sample
-
-
-class Normalizer(object):
-
-    def __init__(self):
-        self.mean = np.array([[[0.485, 0.456, 0.406]]])
-        self.std = np.array([[[0.229, 0.224, 0.225]]])
-
-    def __call__(self, sample):
-
-        image, annots = sample['img'], sample['annot']
-
-        return {'img':((image.astype(np.float32)-self.mean)/self.std), 'annot': annots}
+    loc_targets = []
+    cls_targets = []
+    print('boxes: ', boxes)
+    for i in range(num_imgs):
+        inputs[i] = imgs[i]
+        loc_target, cls_target = encoder.encode(boxes[i], labels[i], input_size=(w,h))
+        loc_targets.append(loc_target)
+        cls_targets.append(cls_target)
+    return inputs, torch.stack(loc_targets), torch.stack(cls_targets)

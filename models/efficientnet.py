@@ -187,7 +187,7 @@ class EfficientNet(nn.Module):
         """ Calls extract_features to extract features, applies final linear layer, and returns logits. """
         # Convolution layers
         P = self.extract_features(inputs)
-        return P
+        return tuple(P)
     
     @classmethod
     def from_name(cls, model_name, override_params=None):
