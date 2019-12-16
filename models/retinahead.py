@@ -57,7 +57,6 @@ class RetinaHead(nn.Module):
             [2**(i / scales_per_octave) for i in range(scales_per_octave)])
         anchor_scales = octave_scales * octave_base_scale
         self.cls_out_channels = num_classes
-        print('num_class: ', self.cls_out_channels)
         self.num_anchors = len(self.anchor_ratios) * len(self.anchor_scales)
         self._init_layers()
     def _init_layers(self):
