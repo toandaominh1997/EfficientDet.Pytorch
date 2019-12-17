@@ -3,6 +3,7 @@ import torch.nn as nn
 import math
 from models.efficientnet import EfficientNet
 from models.bifpn import BIFPN
+from .retinahead import RetinaHead
 from models.module import RegressionModel, ClassificationModel, Anchors, ClipBoxes, BBoxTransform
 from torchvision.ops import nms 
 
@@ -13,6 +14,8 @@ MODEL_MAP = {
     'efficientdet-d3': 'efficientnet-b3',
     'efficientdet-d4': 'efficientnet-b4',
     'efficientdet-d5': 'efficientnet-b5',
+    'efficientdet-d6': 'efficientnet-b6',
+    'efficientdet-d7': 'efficientnet-b6',
 }
 class EfficientDet(nn.Module):
     def __init__(self,
@@ -25,14 +28,16 @@ class EfficientDet(nn.Module):
                  threshold=0.5,
                  iou_threshold=0.5):
         super(EfficientDet, self).__init__()
-        self.efficientnet = EfficientNet.from_pretrained(MODEL_MAP[network])
+        self.backbone = EfficientNet.from_pretrained(MODEL_MAP[network])
         self.is_training = is_training
-        self.BIFPN = BIFPN(in_channels=self.efficientnet.get_list_features()[-5:],
+        self.neck = BIFPN(in_channels=self.backbone.get_list_features()[-5:],
                                 out_channels=W_bifpn,
                                 stack=D_bifpn,
                                 num_outs=5)
-        self.regressionModel = RegressionModel(W_bifpn)
-        self.classificationModel = ClassificationModel(W_bifpn, num_classes=num_classes)
+        self.bbox_head = RetinaHead(num_classes = num_classes,
+                                    in_channels = W_bifpn)
+
+
         self.anchors = Anchors()
         self.regressBoxes = BBoxTransform()
         self.clipBoxes = ClipBoxes()
@@ -46,19 +51,13 @@ class EfficientDet(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
-        prior = 0.01
-        
-        self.classificationModel.output.weight.data.fill_(0)
-        self.classificationModel.output.bias.data.fill_(-math.log((1.0-prior)/prior))
-        self.regressionModel.output.weight.data.fill_(0)
-        self.regressionModel.output.bias.data.fill_(0)
         self.freeze_bn()
 
     def forward(self, inputs):
-        features = self.efficientnet(inputs)
-        features = self.BIFPN(features[-5:])
-        regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
-        classification = torch.cat([self.classificationModel(feature) for feature in features], dim=1)
+        x = self.extract_feat(inputs)
+        outs = self.bbox_head(x)
+        classification = torch.cat([out for out in outs[0]], dim=1)
+        regression = torch.cat([out for out in outs[1]], dim=1)
         anchors = self.anchors(inputs)
         if self.is_training:
             return classification, regression, anchors
@@ -83,3 +82,10 @@ class EfficientDet(nn.Module):
         for layer in self.modules():
             if isinstance(layer, nn.BatchNorm2d):
                 layer.eval()
+    def extract_feat(self, img):
+        """
+            Directly extract features from the backbone+neck
+        """
+        x = self.backbone(img)
+        x = self.neck(x[-5:])
+        return x

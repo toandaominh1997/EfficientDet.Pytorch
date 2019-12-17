@@ -43,21 +43,21 @@ def visualize(annotations, category_id_to_name):
     img = annotations['image'].copy()
     for idx, bbox in enumerate(annotations['bboxes']):
         img = visualize_bbox(img, bbox, annotations['category_id'][idx], category_id_to_name)
-    plt.figure(figsize=(12, 12))
-    plt.imshow(img)
+    # plt.figure(figsize=(12, 12))
+    # plt.imshow(img)
+    return img 
 
-dataset_root = '/home/toandm2/data/VOCdevkit'
+dataset_root = '/root/data/VOCdevkit'
 network = 'efficientdet-d0'
 dataset = VOCDetection(root=dataset_root,
                        transform=get_augumentation(phase='train', width=EFFICIENTDET[network]['input_size'], height=EFFICIENTDET[network]['input_size']))
-def visual_data(data):
+def visual_data(data, name):
     img = data['image']
     bboxes = data['bboxes']
-    print(len(data['bboxes']))
     annotations = {'image': data['image'], 'bboxes': data['bboxes'], 'category_id': range(len(data['bboxes']))}
     category_id_to_name = {v:v for v in range(len(data['bboxes']))}
 
-    visualize(annotations, category_id_to_name)
-    plt.show()
-for i in range(20, 35):
-    visual_data(dataset[i])
+    img = visualize(annotations, category_id_to_name)
+    cv2.imwrite(name, img)
+for i in range(20, 25):
+    visual_data(dataset[i], "name"+str(i)+".png")

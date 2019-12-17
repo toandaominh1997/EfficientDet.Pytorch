@@ -1,12 +1,8 @@
 version: 2
 jobs:
-  build:
-    working_directory: ~/efficientdet
-    # The primary container is an instance of the first image listed. The job's commands run in this container.
-    docker:
-      - image: circleci/python:3.6.9-stretch-node-browsers-legacy
-    steps:
-      - checkout
-      - run:
-          name: Install
-          command: 'pip install requirements.txt'
+ build:
+  docker:
+   - image: toandaominh1997/pytoan:latest
+  steps:
+   - checkout # check out the code in the project directory
+   - run: python test.py

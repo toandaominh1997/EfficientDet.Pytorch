@@ -9,15 +9,15 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
     list_transforms = []
     if phase == 'train':
         list_transforms.extend([
-            albu.OneOf([
-                albu.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1,
-                                      rotate_limit=15,
-                                      border_mode=cv2.BORDER_CONSTANT, value=0),
-                albu.NoOp()
-            ]),
+            albu.augmentations.transforms.LongestMaxSize(
+                max_size=width, always_apply=True),
+            albu.PadIfNeeded(min_height=height, min_width=width,
+                             always_apply=True, border_mode=0, value=[0, 0, 0]),
             albu.augmentations.transforms.RandomResizedCrop(
-                                 height=height,
-                                 width=width, p=1.0),
+                height=height,
+                width=width, p=0.3),
+            albu.augmentations.transforms.Flip(),
+            albu.augmentations.transforms.Transpose(),
             albu.OneOf([
                 albu.RandomBrightnessContrast(brightness_limit=0.5,
                                               contrast_limit=0.4),
@@ -31,18 +31,17 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
                                         sat_shift_limit=5),
                 albu.NoOp()
             ]),
-            albu.OneOf([
-                albu.CLAHE(),
-                albu.NoOp()
-            ]),
+            albu.CLAHE(p=0.8),
             albu.HorizontalFlip(p=0.5),
-            albu.VerticalFlip(p=0.5)
+            albu.VerticalFlip(p=0.5),
         ])
     if(phase == 'test'):
         list_transforms.extend([
             albu.Resize(height=height, width=width)
         ])
     list_transforms.extend([
+        albu.Normalize(mean=(0.485, 0.456, 0.406),
+                       std=(0.229, 0.224, 0.225), p=1),
         ToTensor()
     ])
     if(phase == 'test'):
