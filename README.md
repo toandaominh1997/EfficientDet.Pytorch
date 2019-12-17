@@ -35,7 +35,8 @@ python demo.py --weight ./checkpoint_VOC_efficientdet-d1_97.pth --threshold 0.6 
 &nbsp;
 
 ## Recent Update
- - [7/12/2019] Support Efficient-D0, Efficient-D1, Efficient-D2, Efficient-D3, Efficient-D4,... . Support change gradient accumulation steps, AdamW.
+ - [17/12/2019] Add Fast normalized fusion, Augmentation with Ratio, Change RetinaHead, Fix Support EfficientDet-D0->D7
+ - [7/12/2019] Support EfficientDet-D0, EfficientDet-D1, EfficientDet-D2, EfficientDet-D3, EfficientDet-D4,... . Support change gradient accumulation steps, AdamW.
 ## Benchmarking
 
 We benchmark our code thoroughly on three datasets: pascal voc and coco, using family efficientnet different network architectures: EfficientDet-D0->7. Below are the results:
@@ -87,14 +88,17 @@ sh datasets/scripts/COCO2014.sh
 - To train EfficientDet using the train script simply specify the parameters listed in `train.py` as a flag or manually change them.
 
 ```Shell
-python train.py --model_name effcientdet-d0 # Example
+python train.py --network effcientdet-d0  # Example
 ```
 
   - With VOC Dataset:
   ```Shell
-  python train.py --dataset_root /root/data/VOCdevkit/ --n effcientdet-d0 # Example
+  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network effcientdet-d0 --batch_size 32 # Example
   ```
-  - With COCO Dataset: Support soon
+  - With COCO Dataset:
+  ```Shell
+  python train.py --dataset COCO --dataset_root /root/data/coco/ --network effcientdet-d0 --batch_size 32 # Example
+  ```
 
 ## Evaluation
 To evaluate a trained network:
@@ -104,7 +108,7 @@ python eval.py
 ## Demo
 
 ```Shell
-python demo.py --weights ./checkpoint_VOC_efficientdet-d1_97.pth --threshold 0.5
+python demo.py --threshold 0.5 --iou_threshold 0.5 --score --weight checkpoint_VOC_efficientdet-d1_34.pth --file_name demo.png
 ```
 
 Output: 
@@ -117,7 +121,7 @@ Output:
 
 You can use a webcam in a real-time demo by running:
 ```Shell
-python demo.py --weight ./checkpoint_VOC_efficientdet-d1_97.pth --threshold 0.6 --iou_threshold 0.5 --cam --score
+python demo.py --threshold 0.5 --iou_threshold 0.5 --cam --score --weight checkpoint_VOC_efficientdet-d1_34.pth
 ```
 
 ## Performance
@@ -128,7 +132,7 @@ python demo.py --weight ./checkpoint_VOC_efficientdet-d1_97.pth --threshold 0.6 
 ## TODO
 We have accumulated the following to-do list, which we hope to complete in the near future
 - Still to come:
-  * [x] EfficientDet-D0-7
+  * [x] EfficientDet-[D0-7]
   * [x] GPU-Parallel
   * [x] NMS
   * [ ] Soft-NMS
@@ -151,6 +155,7 @@ We have accumulated the following to-do list, which we hope to complete in the n
 - A list of other great EfficientDet ports that were sources of inspiration:
   * [EfficientNet](https://github.com/lukemelas/EfficientNet-PyTorch)
   * [SSD.Pytorch](https://github.com/amdegroot/ssd.pytorch)
+  * [mmdetection](https://github.com/open-mmlab/mmdetection)
   * [RetinaNet.Pytorch](https://github.com/yhenon/pytorch-retinanet)
   * [NMS.Torchvision](https://pytorch.org/docs/stable/torchvision/ops.html)
   
