@@ -14,6 +14,8 @@ MODEL_MAP = {
     'efficientdet-d3': 'efficientnet-b3',
     'efficientdet-d4': 'efficientnet-b4',
     'efficientdet-d5': 'efficientnet-b5',
+    'efficientdet-d6': 'efficientnet-b6',
+    'efficientdet-d7': 'efficientnet-b6',
 }
 class EfficientDet(nn.Module):
     def __init__(self,
