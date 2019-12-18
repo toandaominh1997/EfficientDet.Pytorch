@@ -45,7 +45,7 @@ We benchmark our code thoroughly on three datasets: pascal voc and coco, using f
 
 model    | #GPUs | batch size | lr        | lr_decay | max_epoch     |  time/epoch | mem/GPU | mAP
 ---------|--------|-----|--------|-----|-----|-------|--------|-----
-[EfficientDet-D1(with Weight)](https://drive.google.com/open?id=1evKg_s2kTYG-AUeVvlq9cliEEHlJ9TQQ) | 2 | 16 | 1e-4 | 30   | 100   |  20.min | 20100 MB   | updating
+[EfficientDet-D1(with Weight)](https://drive.google.com/file/d/1ya7K-4oNMXMIHPMmV9QtD92MZ58hqMz7/view?usp=sharing) | 2 | 16 | 1e-4 | 30   | 100   |  20.min | 20100 MB   | updating
 
 
 ## Installation
