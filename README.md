@@ -19,7 +19,6 @@ python demo.py --weight ./checkpoint_VOC_efficientdet-d1_97.pth --threshold 0.6 
 - <a href='#recent-update'>Recent Update</a>
 - <a href='#benchmarking'>Benchmarking</a>
 - <a href='#installation'>Installation</a>
-- <a href='#installation'>Installation</a>
 - <a href='#prerequisites'>Prerequisites</a>
 - <a href='#datasets'>Datasets</a>
 - <a href='#training-efficientdet'>Train</a>
