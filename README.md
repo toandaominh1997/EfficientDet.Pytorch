@@ -76,12 +76,11 @@ sh datasets/scripts/VOC2012.sh
 ### COCO
 Microsoft COCO: Common Objects in Context
 
-##### Download COCO 2014
+##### Download COCO 2017
 ```Shell
 # specify a directory for dataset to be downloaded into, else default is ~/data/
-sh datasets/scripts/COCO2014.sh
+sh datasets/scripts/COCO2017.sh
 ```
-**Note**: Read dataset COCO will support soon.
 
 ## Training EfficientDet
 
