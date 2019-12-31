@@ -116,7 +116,7 @@ def snap_to_anchors(boxes, size, stride, anchors, num_classes, device):
         depth.view(num_anchors, 1, height, width))
 
 class EffLoss(nn.Module):
-    def __init__(self, classes=80):
+    def __init__(self, classes=20):
         super(EffLoss, self).__init__()
         self.anchors = {}
         self.ratios = [1.0, 2.0, 0.5]
@@ -132,9 +132,7 @@ class EffLoss(nn.Module):
             stride = x.shape[-1] / cls_head.shape[-1]
 
             cls_target, box_target, depth = self._extract_targets(targets, stride, size)
-            print('cls_target: ', cls_target.size())
             fg_targets.append((depth > 0).sum().float().clamp(min=1))
-
             cls_head = cls_head.view_as(cls_target).float()
             cls_mask = (depth >= 0).expand_as(cls_target).float()
             cls_loss = self.cls_criterion(cls_head, cls_target)

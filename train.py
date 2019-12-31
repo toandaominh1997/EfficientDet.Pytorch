@@ -36,7 +36,7 @@ parser.add_argument('--num_worker', default=16, type=int,
                     help='Number of workers used in dataloading')
 parser.add_argument('--num_classes', default=20, type=int,
                     help='Number of class used in model')
-parser.add_argument('--device', default=[1], type=list,
+parser.add_argument('--device', default=[0, 1], type=list,
                     help='Use CUDA to train model')
 parser.add_argument('--grad_accumulation_steps', default=1, type=int,
                     help='Number of gradient accumulation steps')
@@ -138,8 +138,8 @@ def train():
             annotations = annotations.to(device)
             classification, regression = model(images)
             classification_loss, regression_loss = criterion(images, classification, regression, annotations)
-            classification_loss = classification_loss.mean()
-            regression_loss = regression_loss.mean()
+            # classification_loss = classification_loss.mean()
+            # regression_loss = regression_loss.mean()
             loss = classification_loss + regression_loss
             if bool(loss == 0):
                 print('loss equal zero(0)')

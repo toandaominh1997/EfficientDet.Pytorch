@@ -110,17 +110,17 @@ class RetinaHead(nn.Module):
             reg_feat = reg_conv(reg_feat)
         
         cls_score = self.retina_cls(cls_feat)
-        cls_score = self.output_act(cls_score)
-        # out is B x C x W x H, with C = n_classes + n_anchors
-        cls_score = cls_score.permute(0, 2, 3, 1)
-        batch_size, width, height, channels = cls_score.shape
-        cls_score = cls_score.view(batch_size, width, height, self.num_anchors, self.num_classes)
-        cls_score = cls_score.contiguous().view(x.size(0), -1, self.num_classes)
+        # cls_score = self.output_act(cls_score)
+        # # out is B x C x W x H, with C = n_classes + n_anchors
+        # cls_score = cls_score.permute(0, 2, 3, 1)
+        # batch_size, width, height, channels = cls_score.shape
+        # cls_score = cls_score.view(batch_size, width, height, self.num_anchors, self.num_classes)
+        # cls_score = cls_score.contiguous().view(x.size(0), -1, self.num_classes)
 
 
         bbox_pred = self.retina_reg(reg_feat)
-        bbox_pred = bbox_pred.permute(0, 2, 3, 1)
-        bbox_pred = bbox_pred.contiguous().view(bbox_pred.size(0), -1, 4)
+        # bbox_pred = bbox_pred.permute(0, 2, 3, 1)
+        # bbox_pred = bbox_pred.contiguous().view(bbox_pred.size(0), -1, 4)
         return cls_score, bbox_pred
     def forward(self, feats):
         return multi_apply(self.forward_single, feats)
