@@ -92,11 +92,11 @@ python train.py --network effcientdet-d0  # Example
 
   - With VOC Dataset:
   ```Shell
-  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network effcientdet-d0 --batch_size 32 # Example
+  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network efficientdet-d0 --batch_size 32 # Example
   ```
   - With COCO Dataset:
   ```Shell
-  python train.py --dataset COCO --dataset_root /root/data/coco/ --network effcientdet-d0 --batch_size 32 # Example
+  python train.py --dataset COCO --dataset_root /root/data/coco/ --network efficientdet-d0 --batch_size 32 # Example
   ```
 
 ## Evaluation
