@@ -115,10 +115,13 @@ def snap_to_anchors(boxes, size, stride, anchors, num_classes, device):
         box_target.view(num_anchors, 4, height, width),
         depth.view(num_anchors, 1, height, width))
 
-class FocalLoss(nn.Module):
-    def __init__(self):
-        super(FocalLoss, self).__init__()
+class EffLoss(nn.Module):
+    def __init__(self, classes=80):
+        super(EffLoss, self).__init__()
         self.anchors = {}
+        self.ratios = [1.0, 2.0, 0.5]
+        self.scales = [4 * 2**(i/3) for i in range(3)]
+        self.classes = classes
         self.cls_criterion = FocalLoss()
         self.box_criterion = SmoothL1Loss(beta=0.11)
     
@@ -129,6 +132,7 @@ class FocalLoss(nn.Module):
             stride = x.shape[-1] / cls_head.shape[-1]
 
             cls_target, box_target, depth = self._extract_targets(targets, stride, size)
+            print('cls_target: ', cls_target.size())
             fg_targets.append((depth > 0).sum().float().clamp(min=1))
 
             cls_head = cls_head.view_as(cls_target).float()

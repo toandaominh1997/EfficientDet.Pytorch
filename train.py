@@ -13,6 +13,8 @@ from models.losses import FocalLoss
 from datasets import VOCDetection, COCODetection, CocoDataset, get_augumentation, detection_collate
 from utils import EFFICIENTDET
 
+from models.compute_loss import EffLoss
+
 
 parser = argparse.ArgumentParser(
     description='EfficientDet Training With Pytorch')
@@ -34,7 +36,7 @@ parser.add_argument('--num_worker', default=16, type=int,
                     help='Number of workers used in dataloading')
 parser.add_argument('--num_classes', default=20, type=int,
                     help='Number of class used in model')
-parser.add_argument('--device', default=[0, 1], type=list,
+parser.add_argument('--device', default=[1], type=list,
                     help='Use CUDA to train model')
 parser.add_argument('--grad_accumulation_steps', default=1, type=int,
                     help='Number of gradient accumulation steps')
@@ -50,7 +52,7 @@ parser.add_argument('--save_folder', default='./saved/weights/', type=str,
                     help='Directory for saving checkpoint models')
 args = parser.parse_args()
 if not os.path.exists(args.save_folder):
-    os.mkdir(args.save_folder)
+    os.makedirs(args.save_folder)
 
 
 def prepare_device(device):
@@ -119,7 +121,7 @@ if(len(device_ids) > 1):
 optimizer = optim.AdamW(model.parameters(), lr=args.lr)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, patience=3, verbose=True)
-criterion = FocalLoss()
+criterion = EffLoss()
 
 
 def train():
@@ -134,9 +136,8 @@ def train():
         for idx, (images, annotations) in enumerate(train_dataloader):
             images = images.to(device)
             annotations = annotations.to(device)
-            classification, regression, anchors = model(images)
-            classification_loss, regression_loss = criterion(
-                classification, regression, anchors, annotations)
+            classification, regression = model(images)
+            classification_loss, regression_loss = criterion(images, classification, regression, annotations)
             classification_loss = classification_loss.mean()
             regression_loss = regression_loss.mean()
             loss = classification_loss + regression_loss
