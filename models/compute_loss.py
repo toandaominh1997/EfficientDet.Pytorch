@@ -58,6 +58,22 @@ def box2delta(boxes, anchors):
         (boxes_ctr - anchors_ctr) / anchors_wh,
         torch.log(boxes_wh / anchors_wh)
     ], 1)
+def delta2box(deltas, anchors, size, stride):
+    'Convert deltas from anchors to boxes'
+
+    anchors_wh = anchors[:, 2:] - anchors[:, :2] + 1
+    ctr = anchors[:, :2] + 0.5 * anchors_wh
+    pred_ctr = deltas[:, :2] * anchors_wh + ctr
+    pred_wh = torch.exp(deltas[:, 2:]) * anchors_wh
+
+    m = torch.zeros([2], device=deltas.device, dtype=deltas.dtype)
+    M = (torch.tensor([size], device=deltas.device, dtype=deltas.dtype) * stride - 1)
+    clamp = lambda t: torch.max(m, torch.min(t, M))
+    return torch.cat([
+        clamp(pred_ctr - 0.5 * pred_wh),
+        clamp(pred_ctr + 0.5 * pred_wh - 1)
+    ], 1)
+
 def snap_to_anchors(boxes, size, stride, anchors, num_classes, device):
     'Snap target boxes (x, y, w, h) to anchors'
 
@@ -115,6 +131,57 @@ def snap_to_anchors(boxes, size, stride, anchors, num_classes, device):
         box_target.view(num_anchors, 4, height, width),
         depth.view(num_anchors, 1, height, width))
 
+def decode(all_cls_head, all_box_head, stride=1, threshold=0.05, top_n=1000, anchors=None):
+    'Box Decoding and Filtering'
+
+#     if torch.cuda.is_available():
+#         return decode_cuda(all_cls_head.float(), all_box_head.float(),
+#             anchors.view(-1).tolist(), stride, threshold, top_n)
+
+    device = all_cls_head.device
+    anchors = anchors.to(device).type(all_cls_head.type())
+    num_anchors = anchors.size()[0] if anchors is not None else 1
+    num_classes = all_cls_head.size()[1] // num_anchors
+    height, width = all_cls_head.size()[-2:]
+
+    batch_size = all_cls_head.size()[0]
+    out_scores = torch.zeros((batch_size, top_n), device=device)
+    out_boxes = torch.zeros((batch_size, top_n, 4), device=device)
+    out_classes = torch.zeros((batch_size, top_n), device=device)
+
+    # Per item in batch
+    for batch in range(batch_size):
+        cls_head = all_cls_head[batch, :, :, :].contiguous().view(-1)
+        box_head = all_box_head[batch, :, :, :].contiguous().view(-1, 4)
+
+        # Keep scores over threshold
+        keep = (cls_head >= threshold).nonzero().view(-1)
+        if keep.nelement() == 0:
+            continue
+
+        # Gather top elements
+        scores = torch.index_select(cls_head, 0, keep)
+        scores, indices = torch.topk(scores, min(top_n, keep.size()[0]), dim=0)
+        indices = torch.index_select(keep, 0, indices).view(-1)
+        classes = (indices / width / height) % num_classes
+        classes = classes.type(all_cls_head.type())
+
+        # Infer kept bboxes
+        x = indices % width
+        y = (indices / width) % height
+        a = indices / num_classes / height / width
+        box_head = box_head.view(num_anchors, 4, height, width)
+        boxes = box_head[a, :, y, x]
+
+        if anchors is not None:
+            grid = torch.stack([x, y, x, y], 1).type(all_cls_head.type()) * stride + anchors[a, :]
+            boxes = delta2box(boxes, grid, [width, height], stride)
+
+        out_scores[batch, :scores.size()[0]] = scores
+        out_boxes[batch, :boxes.size()[0], :] = boxes
+        out_classes[batch, :classes.size()[0]] = classes
+
+    return out_scores, out_boxes, out_classes
 class EffLoss(nn.Module):
     def __init__(self, classes=20):
         super(EffLoss, self).__init__()
