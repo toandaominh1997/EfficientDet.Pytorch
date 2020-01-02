@@ -1,16 +1,19 @@
-import torch
-import cv2
-from PIL import Image
-import matplotlib.pyplot as plt
-from models import EfficientDet
-from torchvision import transforms
-import numpy as np
-import skimage
-from datasets import get_augumentation, VOC_CLASSES
-from timeit import default_timer as timer
 import argparse
 import copy
-from utils import vis_bbox, EFFICIENTDET
+import time
+from timeit import default_timer as timer
+
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+import skimage
+import torch
+from PIL import Image
+from torchvision import transforms
+
+from datasets import VOC_CLASSES, get_augumentation
+from models import EfficientDet
+from utils import EFFICIENTDET, vis_bbox
 
 parser = argparse.ArgumentParser(description='EfficientDet')
 
@@ -57,10 +60,12 @@ class Detect(object):
                      W_bifpn=EFFICIENTDET[network]['W_bifpn'],
                      D_bifpn=EFFICIENTDET[network]['D_bifpn'],
                      D_class=EFFICIENTDET[network]['D_class'],
-                     is_training=False
+                     is_training=False,
+                     threshold=args.threshold
                      )
 
         if(self.weights is not None):
+            print('load pretrained')
             state_dict = checkpoint['state_dict']
             self.model.load_state_dict(state_dict)
         self.model = self.model.cuda()
@@ -74,7 +79,6 @@ class Detect(object):
         img = augmentation['image']
         img = img.to(self.device)
         img = img.unsqueeze(0)
-
         with torch.no_grad():
             scores, classification, transformed_anchors = self.model(img)
             bboxes = list()
@@ -132,6 +136,10 @@ class Detect(object):
         if not cap.isOpened():
             print("Unable to open camera")
             exit(-1)
+        
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
         count_tfps = 1
         accum_time = 0
         curr_fps = 0

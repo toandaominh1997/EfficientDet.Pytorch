@@ -7,7 +7,7 @@ from .retinahead import RetinaHead
 from .compute_loss import generate_anchors, decode
 from models.module import RegressionModel, ClassificationModel, Anchors, ClipBoxes, BBoxTransform
 from torchvision.ops import nms 
-
+import time 
 MODEL_MAP = {
     'efficientdet-d0': 'efficientnet-b0',
     'efficientdet-d1': 'efficientnet-b1',
@@ -28,7 +28,7 @@ class EfficientDet(nn.Module):
                  is_training=True,
                  threshold=0.5,
                  iou_threshold=0.5,
-                 top_n = 1000):
+                 top_n = 10):
         super(EfficientDet, self).__init__()
         self.is_training = is_training
         self.threshold = threshold
@@ -68,12 +68,18 @@ class EfficientDet(nn.Module):
             stride = inputs.shape[-1]//cls_head.shape[-1]
             if stride not in self.anchors:
                 self.anchors[stride] = generate_anchors(stride, self.ratios, self.scales)
-                decoded.append(decode(cls_head, box_head, stride, self.threshold, self.top_n, self.anchors[stride]))
-        
+            decoded.append(decode(cls_head, box_head, stride, self.threshold, self.top_n, self.anchors[stride]))
         decoded = [torch.cat(tensors, 1) for tensors in zip(*decoded)]
-        anchor_nms_idx = nms(decoded[1][0, :, :], decoded[0][0, :], iou_threshold = self.iou_threshold)
-        
-        return decoded[0][0, anchor_nms_idx], decoded[2][0, anchor_nms_idx], decoded[1][0, anchor_nms_idx, :]
+        scores, bbox, classfication = decoded
+        scores_over_thresh = (scores > self.threshold)[0, :]
+        if scores_over_thresh.sum() ==0:
+            print('No boxes to NMS')
+            return [torch.zeros(0), torch.zeros(0), torch.zeros(0, 4)]
+        scores = scores[:, scores_over_thresh]
+        classfication = classfication[:, scores_over_thresh]
+        bbox = bbox[:, scores_over_thresh, :]
+        anchor_nms_idx = nms(bbox[0, :, :], scores[0, :], iou_threshold = self.iou_threshold)
+        return scores[0, anchor_nms_idx], classfication[0, anchor_nms_idx], bbox[0, anchor_nms_idx, :]
     
     def freeze_bn(self):
         '''Freeze BatchNorm layers.'''
