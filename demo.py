@@ -41,28 +41,30 @@ class Detect(object):
         dir_name: Folder or image_file
     """
 
-    def __init__(self, weights, num_class=21, network='efficientdet-d0', size_image=(512, 512)):
+    def __init__(self, weights):
         super(Detect,  self).__init__()
         self.weights = weights
-        self.size_image = size_image
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else 'cpu')
-        self.transform = get_augumentation(phase='test')
         if(self.weights is not None):
             print('Load pretrained Model')
             checkpoint = torch.load(
                 self.weights, map_location=lambda storage, loc: storage)
             num_class = checkpoint['num_class']
             network = checkpoint['network']
-
+        self.transform = get_augumentation(
+            phase='test', width=EFFICIENTDET[network]['input_size'], height=EFFICIENTDET[network]['input_size'])
+        self.size_image = (
+            EFFICIENTDET[network]['input_size'], EFFICIENTDET[network]['input_size'])
         self.model = EfficientDet(num_classes=num_class,
-                     network=network,
-                     W_bifpn=EFFICIENTDET[network]['W_bifpn'],
-                     D_bifpn=EFFICIENTDET[network]['D_bifpn'],
-                     D_class=EFFICIENTDET[network]['D_class'],
-                     is_training=False,
-                     threshold=args.threshold
-                     )
+                                  network=network,
+                                  W_bifpn=EFFICIENTDET[network]['W_bifpn'],
+                                  D_bifpn=EFFICIENTDET[network]['D_bifpn'],
+                                  D_class=EFFICIENTDET[network]['D_class'],
+                                  is_training=False,
+                                  threshold=args.threshold,
+                                  iou_threshold=args.iou_threshold
+                                  )
 
         if(self.weights is not None):
             print('load pretrained')
@@ -96,8 +98,8 @@ class Detect(object):
                 labels.append(label_name)
 
                 if(args.cam):
-                    cv2.rectangle(origin_img, (x1, y1),
-                                  (x2, y2), (179, 255, 179), 2, 1)
+                    cv2.rectangle(origin_img, (x1, y1), (x2, y2),
+                                  (179, 255, 179), 2, 1)
                 if args.score:
                     score = np.around(
                         scores[[j]].cpu().numpy(), decimals=2) * 100
@@ -136,9 +138,9 @@ class Detect(object):
         if not cap.isOpened():
             print("Unable to open camera")
             exit(-1)
-        
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+        # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
         count_tfps = 1
         accum_time = 0

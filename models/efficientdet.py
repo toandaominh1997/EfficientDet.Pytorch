@@ -63,6 +63,7 @@ class EfficientDet(nn.Module):
             return cls_heads, box_heads
         cls_heads = [cls_head.sigmoid() for cls_head in cls_heads]
         
+        # Inference post-processing
         decoded = []
         for cls_head, box_head in zip(cls_heads, box_heads):
             stride = inputs.shape[-1]//cls_head.shape[-1]
@@ -70,6 +71,7 @@ class EfficientDet(nn.Module):
                 self.anchors[stride] = generate_anchors(stride, self.ratios, self.scales)
             decoded.append(decode(cls_head, box_head, stride, self.threshold, self.top_n, self.anchors[stride]))
         decoded = [torch.cat(tensors, 1) for tensors in zip(*decoded)]
+        
         scores, bbox, classfication = decoded
         scores_over_thresh = (scores > self.threshold)[0, :]
         if scores_over_thresh.sum() ==0:
