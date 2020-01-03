@@ -8,6 +8,7 @@ from datasets import VOCDetection, COCODetection, get_augumentation, detection_c
 
 from torch.utils.data import DataLoader
 from models.efficientdet import EfficientDet
+from utils import EFFICIENTDET
 
 
 parser = argparse.ArgumentParser(
@@ -21,7 +22,7 @@ parser.add_argument('--network', default='efficientdet-d0',
                     help='Choose model for training')
 parser.add_argument('-t', '--threshold', default=0.5,
                     type=float, help='Visualization threshold')
-parser.add_argument('--weights', default='./weights/checkpoint_efficientdet-d0_154.pth', type=str,
+parser.add_argument('--weights', default='./weights/checkpoint_VOC_efficientdet-d1_20.pth', type=str,
                     help='Checkpoint state_dict file to resume training from')
 parser.add_argument('--batch_size', default=32, type=int,
                     help='Batch size for training')
@@ -49,28 +50,32 @@ def prepare_device(device):
     return device, list_ids
 
 
+if(args.weights is not None):
+    resume_path = str(args.weights)
+    print("Loading checkpoint: {} ...".format(resume_path))
+    checkpoint = torch.load(
+        args.weights, map_location=lambda storage, loc: storage)
+    args.num_class = checkpoint['num_class']
+    args.network = checkpoint['network']
+    model = EfficientDet(num_classes=args.num_class, network=args.network, is_training=False)
+    model.load_state_dict(checkpoint['state_dict'])
+device, device_ids = prepare_device(args.device)
+
 if(args.dataset == 'VOC'):
     valid_dataset = VOCDetection(root=args.dataset_root,
-                                 transform=get_augumentation(phase='valid'))
+                                 transform=get_augumentation(phase='valid', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
 elif(args.dataset == 'COCO'):
     valid_dataset = COCODetection(root=args.dataset_root,
-                                  transform=get_augumentation(phase='valid'))
+                                  transform=get_augumentation(phase='valid', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
+
 valid_dataloader = DataLoader(valid_dataset,
                               batch_size=1,
                               num_workers=args.num_worker,
                               shuffle=False,
                               collate_fn=detection_collate,
                               pin_memory=False)
-if(args.weights is not None):
-    resume_path = str(args.weights)
-    print("Loading checkpoint: {} ...".format(resume_path))
-    checkpoint = torch.load(
-        args.weights, map_location=lambda storage, loc: storage)
-    num_class = checkpoint['num_class']
-    network = checkpoint['network']
-    model = EfficientDet(num_classes=num_class, network=network, is_training=False)
-    model.load_state_dict(checkpoint['state_dict'])
-device, device_ids = prepare_device(args.device)
+
+
 model = model.to(device)
 if(len(device_ids) > 1):
     model = torch.nn.DataParallel(model, device_ids=device_ids)
