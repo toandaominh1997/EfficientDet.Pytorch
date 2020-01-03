@@ -52,7 +52,7 @@ class EfficientDet(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
-        self.freeze_bn()
+        # self.freeze_bn()
         
     def forward(self, inputs):
         x = self.extract_feat(inputs)
@@ -71,7 +71,7 @@ class EfficientDet(nn.Module):
                 self.anchors[stride] = generate_anchors(stride, self.ratios, self.scales)
             decoded.append(decode(cls_head, box_head, stride, self.threshold, self.top_n, self.anchors[stride]))
         decoded = [torch.cat(tensors, 1) for tensors in zip(*decoded)]
-        
+
         scores, bbox, classfication = decoded
         scores_over_thresh = (scores > self.threshold)[0, :]
         if scores_over_thresh.sum() ==0:

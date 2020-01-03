@@ -118,7 +118,7 @@ model = model.to(device)
 if(len(device_ids) > 1):
     model = torch.nn.DataParallel(model, device_ids=device_ids)
 
-optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=0.0001, momentum=0.9) 
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, patience=3, verbose=True)
 criterion = EffLoss()
