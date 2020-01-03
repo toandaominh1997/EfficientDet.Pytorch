@@ -8,6 +8,7 @@ from datasets import VOCDetection, COCODetection, get_augumentation, detection_c
 
 from torch.utils.data import DataLoader
 from models.efficientdet import EfficientDet
+from utils import EFFICIENTDET
 
 
 parser = argparse.ArgumentParser(
@@ -19,62 +20,57 @@ parser.add_argument('--dataset_root', default='/root/data/VOCdevkit/',
                     help='Dataset root directory path [/root/data/VOCdevkit/, /root/data/coco/]')
 parser.add_argument('--network', default='efficientdet-d0',
                     help='Choose model for training')
-parser.add_argument('-t', '--threshold', default=0.5,
+parser.add_argument('-t', '--threshold', default=0.4,
                     type=float, help='Visualization threshold')
-parser.add_argument('--weights', default='./weights/checkpoint_efficientdet-d0_154.pth', type=str,
+parser.add_argument('-it', '--iou_threshold', default=0.5,
+                    type=float, help='Visualization threshold')
+parser.add_argument('--weights', default='./weights/checkpoint_VOC_efficientdet-d1_22.pth', type=str,
                     help='Checkpoint state_dict file to resume training from')
 parser.add_argument('--batch_size', default=32, type=int,
                     help='Batch size for training')
 parser.add_argument('--num_worker', default=8, type=int,
                     help='Number of workers used in dataloading')
+
 parser.add_argument('--device', default=[0], type=list,
                     help='Use CUDA to train model')
 args = parser.parse_args()
 
-def prepare_device(device):
-    n_gpu_use = len(device)
-    print('n_gpu_use: ', n_gpu_use)
-    n_gpu = torch.cuda.device_count()
-    if n_gpu_use > 0 and n_gpu == 0:
-        print("Warning: There\'s no GPU available on this machine, training will be performed on CPU.")
-        n_gpu_use = 0
-    if n_gpu_use > n_gpu:
-        print("Warning: The number of GPU\'s configured to use is {}, but only {} are available on this machine.".format(
-            n_gpu_use, n_gpu))
-        n_gpu_use = n_gpu
-    list_ids = device
-    device = torch.device('cuda:{}'.format(
-        device[0]) if n_gpu_use > 0 else 'cpu')
 
-    return device, list_ids
 
+if(args.weights is not None):
+    resume_path = str(args.weights)
+    print("Loading checkpoint: {} ...".format(resume_path))
+    checkpoint = torch.load(
+        args.weights, map_location=lambda storage, loc: storage)
+    args.num_class = checkpoint['num_class']
+    args.network = checkpoint['network']
+    model = EfficientDet(
+                        num_classes=args.num_class,
+                        network=args.network,
+                        W_bifpn=EFFICIENTDET[args.network]['W_bifpn'],
+                        D_bifpn=EFFICIENTDET[args.network]['D_bifpn'],
+                        D_class=EFFICIENTDET[args.network]['D_class'],
+                        is_training=False,
+                        threshold=args.threshold,
+                        iou_threshold=args.iou_threshold)
+    model.load_state_dict(checkpoint['state_dict'])
 
 if(args.dataset == 'VOC'):
-    valid_dataset = VOCDetection(root=args.dataset_root,
-                                 transform=get_augumentation(phase='valid'))
+    valid_dataset = VOCDetection(root=args.dataset_root, image_sets=[('2007', 'test')],
+                                 transform=get_augumentation(phase='valid', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
 elif(args.dataset == 'COCO'):
     valid_dataset = COCODetection(root=args.dataset_root,
-                                  transform=get_augumentation(phase='valid'))
+                                  transform=get_augumentation(phase='valid', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
+
 valid_dataloader = DataLoader(valid_dataset,
                               batch_size=1,
                               num_workers=args.num_worker,
                               shuffle=False,
                               collate_fn=detection_collate,
                               pin_memory=False)
-if(args.weights is not None):
-    resume_path = str(args.weights)
-    print("Loading checkpoint: {} ...".format(resume_path))
-    checkpoint = torch.load(
-        args.weights, map_location=lambda storage, loc: storage)
-    num_class = checkpoint['num_class']
-    network = checkpoint['network']
-    model = EfficientDet(num_classes=num_class, network=network, is_training=False)
-    model.load_state_dict(checkpoint['state_dict'])
-device, device_ids = prepare_device(args.device)
-model = model.to(device)
-if(len(device_ids) > 1):
-    model = torch.nn.DataParallel(model, device_ids=device_ids)
 
+
+model = model.cuda()
 
 def val_coco(threshold=0.5):
     model.eval()
@@ -171,13 +167,15 @@ def _compute_ap(recall, precision):
     ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
     return ap
 def eval_voc(iou_threshold=0.5):
+    
+    
+    all_detections = [[None for i in range(valid_dataset.__num_class__())] for j in range(len(valid_dataset))]
+    all_annotations = [[None for i in range(valid_dataset.__num_class__())] for j in range(len(valid_dataset))]
     model.eval()
-    with torch.no_grad():
-        all_detections = [[None for i in range(valid_dataset.__num_class__())] for j in range(len(valid_dataset))]
-        all_annotations = [[None for i in range(valid_dataset.__num_class__())] for j in range(len(valid_dataset))]
-        for idx, (images, annotations) in enumerate(tqdm(valid_dataloader)):
-            images = images.to(device)
-            annotations = annotations.to(device)
+    for idx, (images, annotations) in enumerate(tqdm(valid_dataloader)):
+        images = images.cuda()
+        annotations = annotations.cuda()
+        with torch.no_grad():
             scores, classification, transformed_anchors = model(images)
             if(scores.shape[0]>0):
                 pred_annots = []
@@ -196,75 +194,75 @@ def eval_voc(iou_threshold=0.5):
             else:
                 for label in range(valid_dataset.__num_class__()):
                     all_detections[idx][label] = np.zeros((0, 5))
+                
             annotations = annotations[0].cpu().numpy()
             for label in range(valid_dataset.__num_class__()):
                 all_annotations[idx][label] = annotations[annotations[:, 4] == label, :4].copy()
-        
-        print('\t Start caculator mAP ...')
-        average_precisions = {}
+    print('\t Start caculator mAP ...')
+    average_precisions = {}
 
-        for label in range(valid_dataset.__num_class__()):
-            false_positives = np.zeros((0,))
-            true_positives  = np.zeros((0,))
-            scores          = np.zeros((0,))
-            num_annotations = 0.0
+    for label in range(valid_dataset.__num_class__()):
+        false_positives = np.zeros((0,))
+        true_positives  = np.zeros((0,))
+        scores          = np.zeros((0,))
+        num_annotations = 0.0
 
-            for i in range(valid_dataset.__num_class__()):
-                detections           = all_detections[i][label]
-                annotations          = all_annotations[i][label]
-                num_annotations     += annotations.shape[0]
-                detected_annotations = []
+        for i in range(valid_dataset.__num_class__()):
+            detections           = all_detections[i][label]
+            annotations          = all_annotations[i][label]
+            num_annotations     += annotations.shape[0]
+            detected_annotations = []
 
-                for d in detections:
-                    scores = np.append(scores, d[4])
+            for d in detections:
+                scores = np.append(scores, d[4])
 
-                    if annotations.shape[0] == 0:
-                        false_positives = np.append(false_positives, 1)
-                        true_positives  = np.append(true_positives, 0)
-                        continue
+                if annotations.shape[0] == 0:
+                    false_positives = np.append(false_positives, 1)
+                    true_positives  = np.append(true_positives, 0)
+                    continue
 
-                    overlaps            = compute_overlap(np.expand_dims(d, axis=0), annotations)
-                    assigned_annotation = np.argmax(overlaps, axis=1)
-                    max_overlap         = overlaps[0, assigned_annotation]
+                overlaps            = compute_overlap(np.expand_dims(d, axis=0), annotations)
+                assigned_annotation = np.argmax(overlaps, axis=1)
+                max_overlap         = overlaps[0, assigned_annotation]
 
-                    if max_overlap >= iou_threshold and assigned_annotation not in detected_annotations:
-                        false_positives = np.append(false_positives, 0)
-                        true_positives  = np.append(true_positives, 1)
-                        detected_annotations.append(assigned_annotation)
-                    else:
-                        false_positives = np.append(false_positives, 1)
-                        true_positives  = np.append(true_positives, 0)
+                if max_overlap >= iou_threshold and assigned_annotation not in detected_annotations:
+                    false_positives = np.append(false_positives, 0)
+                    true_positives  = np.append(true_positives, 1)
+                    detected_annotations.append(assigned_annotation)
+                else:
+                    false_positives = np.append(false_positives, 1)
+                    true_positives  = np.append(true_positives, 0)
 
-            # no annotations -> AP for this class is 0 (is this correct?)
-            if num_annotations == 0:
-                average_precisions[label] = 0, 0
-                continue
+        # no annotations -> AP for this class is 0 (is this correct?)
+        if num_annotations == 0:
+            average_precisions[label] = 0, 0
+            continue
 
-            # sort by score
-            indices         = np.argsort(-scores)
-            false_positives = false_positives[indices]
-            true_positives  = true_positives[indices]
+        # sort by score
+        indices         = np.argsort(-scores)
+        false_positives = false_positives[indices]
+        true_positives  = true_positives[indices]
 
-            # compute false positives and true positives
-            false_positives = np.cumsum(false_positives)
-            true_positives  = np.cumsum(true_positives)
+        # compute false positives and true positives
+        false_positives = np.cumsum(false_positives)
+        true_positives  = np.cumsum(true_positives)
 
-            # compute recall and precision
-            recall    = true_positives / num_annotations
-            precision = true_positives / np.maximum(true_positives + false_positives, np.finfo(np.float64).eps)
+        # compute recall and precision
+        recall    = true_positives / num_annotations
+        precision = true_positives / np.maximum(true_positives + false_positives, np.finfo(np.float64).eps)
 
-            # compute average precision
-            average_precision  = _compute_ap(recall, precision)
-            average_precisions[label] = average_precision, num_annotations
-        
-        print('\tmAP:')
-        mAPS = []
-        for label in range(valid_dataset.__num_class__()):
-            label_name = valid_dataset.label_to_name(label)
-            mAPS.append(average_precisions[label][0])
-            print('{}: {}'.format(label_name, average_precisions[label][0]))
-        print('total mAP: {}'.format(np.mean(mAPS)))
-        return average_precisions
+        # compute average precision
+        average_precision  = _compute_ap(recall, precision)
+        average_precisions[label] = average_precision, num_annotations
+
+    print('\tmAP:')
+    mAPS = []
+    for label in range(valid_dataset.__num_class__()):
+        label_name = valid_dataset.label_to_name(label)
+        mAPS.append(average_precisions[label][0])
+        print('{}: {}'.format(label_name, average_precisions[label][0]))
+    print('total mAP: {}'.format(np.mean(mAPS)))
+    return average_precisions
 
 
 

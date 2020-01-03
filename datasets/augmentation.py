@@ -35,7 +35,7 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
             albu.HorizontalFlip(p=0.5),
             albu.VerticalFlip(p=0.5),
         ])
-    if(phase == 'test'):
+    if(phase == 'test' or phase=='valid'):
         list_transforms.extend([
             albu.Resize(height=height, width=width)
         ])
