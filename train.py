@@ -84,7 +84,7 @@ if(args.resume is not None):
     print("Loading checkpoint: {} ...".format(resume_path))
     checkpoint = torch.load(
         args.resume, map_location=lambda storage, loc: storage)
-    args.num_classes = checkpoint['num_classes']
+    args.num_class = checkpoint['num_class']
     args.network = checkpoint['network']
 
 train_dataset = []
@@ -115,12 +115,11 @@ device, device_ids = prepare_device(args.device)
 model = model.to(device)
 if(len(device_ids) > 1):
     model = torch.nn.DataParallel(model, device_ids=device_ids)
-
-optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-    optimizer, patience=3, verbose=True)
+optimizer = optim.SGD(model.parameters(), lr=args.lr)
+# optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
 criterion = FocalLoss()
-
+criterion = criterion.to(device)
 
 def train():
     model.train()
@@ -135,8 +134,7 @@ def train():
             images = images.to(device)
             annotations = annotations.to(device)
             classification, regression, anchors = model(images)
-            classification_loss, regression_loss = criterion(
-                classification, regression, anchors, annotations)
+            classification_loss, regression_loss = criterion(classification, regression, anchors, annotations)
             classification_loss = classification_loss.mean()
             regression_loss = regression_loss.mean()
             loss = classification_loss + regression_loss
@@ -150,7 +148,7 @@ def train():
                 optimizer.zero_grad()
 
             total_loss.append(loss.item())
-            if(iteration % 100 == 0):
+            if(iteration % 500 == 0):
                 print('{} iteration: training ...'.format(iteration))
                 ans = {
                     'epoch': epoch,
@@ -161,7 +159,7 @@ def train():
                 }
                 for key, value in ans.items():
                     print('    {:15s}: {}'.format(str(key), value))
-
+            
             iteration += 1
         scheduler.step(np.mean(total_loss))
         result = {
