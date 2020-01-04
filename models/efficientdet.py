@@ -6,7 +6,7 @@ from models.bifpn import BIFPN
 from .retinahead import RetinaHead
 from models.module import RegressionModel, ClassificationModel, Anchors, ClipBoxes, BBoxTransform
 from torchvision.ops import nms 
-
+from .losses import FocalLoss
 MODEL_MAP = {
     'efficientdet-d0': 'efficientnet-b0',
     'efficientdet-d1': 'efficientnet-b1',
@@ -26,7 +26,8 @@ class EfficientDet(nn.Module):
                  D_class=3,
                  is_training=True,
                  threshold=0.5,
-                 iou_threshold=0.5):
+                 iou_threshold=0.5,
+                 gpu=1):
         super(EfficientDet, self).__init__()
         self.backbone = EfficientNet.from_pretrained(MODEL_MAP[network])
         self.is_training = is_training
@@ -43,7 +44,7 @@ class EfficientDet(nn.Module):
         self.clipBoxes = ClipBoxes()
         self.threshold = threshold
         self.iou_threshold = iou_threshold
-
+        self.gpu = gpu
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
@@ -52,15 +53,17 @@ class EfficientDet(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
         self.freeze_bn()
+        self.criterion = FocalLoss()
 
-    def forward(self, inputs):
+    def forward(self, inputs, annotations):
         x = self.extract_feat(inputs)
         outs = self.bbox_head(x)
         classification = torch.cat([out for out in outs[0]], dim=1)
         regression = torch.cat([out for out in outs[1]], dim=1)
         anchors = self.anchors(inputs)
         if self.is_training:
-            return classification, regression, anchors
+            return self.criterion(classification, regression, anchors, annotations, self.gpu)
+#             return classification, regression, anchors
         else:
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, inputs)

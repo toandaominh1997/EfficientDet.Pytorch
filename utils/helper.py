@@ -18,3 +18,10 @@ def init_seed(SEED=42):
     torch.manual_seed(SEED)
     torch.cuda.manual_seed(SEED)
     torch.backends.cudnn.deterministic = True
+
+def get_state_dict(model):
+    if type(model) == torch.nn.DataParallel:
+        state_dict = model.module.state_dict()
+    else:
+        state_dict = model.state_dict()
+    return state_dict
