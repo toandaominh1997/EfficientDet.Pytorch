@@ -30,7 +30,7 @@ from torch.utils.data import DataLoader
 
 from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
-from datasets import VOCDetection, COCODetection, CocoDataset, get_augumentation, detection_collate
+from datasets import VOCDetection, COCODetection, CocoDataset, get_augumentation, detection_collate, Resizer, Normalizer, Augmenter, collater
 from utils import EFFICIENTDET, get_state_dict
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
@@ -53,7 +53,7 @@ parser.add_argument('--device', default=[0, 1], type=list,
                     help='Use CUDA to train model')
 parser.add_argument('--grad_accumulation_steps', default=1, type=int,
                     help='Number of gradient accumulation steps')
-parser.add_argument('--lr', '--learning-rate', default=1e-4, type=float,
+parser.add_argument('--lr', '--learning-rate', default=1e-3, type=float,
                     help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float,
                     help='Momentum value for optim')
@@ -65,7 +65,7 @@ parser.add_argument('--save_folder', default='./saved/weights/', type=str,
                     help='Directory for saving checkpoint models')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
+parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('--world-size', default=1, type=int,
                     help='number of nodes for distributed training')
@@ -100,7 +100,7 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
         if args.gpu is not None:
             images = images.cuda(args.gpu, non_blocking=True)
         annotations = annotations.cuda(args.gpu, non_blocking=True)
-        classification_loss, regression_loss = model(images, annotations)
+        classification_loss, regression_loss = model([images.float(), annotations])
         classification_loss = classification_loss.mean()
         regression_loss = regression_loss.mean()
         loss = classification_loss + regression_loss
@@ -149,6 +149,23 @@ def main_worker(gpu, ngpus_per_node, args):
             args.rank = args.rank * ngpus_per_node + gpu
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
+    checkpoint = []
+    if(args.resume is not None):
+        if os.path.isfile(args.resume):
+            print("=> loading checkpoint '{}'".format(args.resume))
+            if args.gpu is None:
+                checkpoint = torch.load(args.resume)
+            else:
+                # Map model to be loaded to specified single gpu.
+                loc = 'cuda:{}'.format(args.gpu)
+                checkpoint = torch.load(args.resume, map_location=loc)
+        params = checkpoint['parser']
+        args.num_class = params.num_class
+        args.network = params.network
+        args.start_epoch = params.start_epoch+1
+        del params
+        
+
     model = EfficientDet(num_classes=args.num_class,
                      network=args.network,
                      W_bifpn=EFFICIENTDET[args.network]['W_bifpn'],
@@ -156,7 +173,9 @@ def main_worker(gpu, ngpus_per_node, args):
                      D_class=EFFICIENTDET[args.network]['D_class'],
                      gpu= args.gpu
                      )
-
+    if(args.resume is not None):
+        model.load_state_dict(checkpoint['state_dict'])
+    del checkpoint
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
         # should always set the single device scope, otherwise,
@@ -189,19 +208,28 @@ def main_worker(gpu, ngpus_per_node, args):
     # Training dataset
     train_dataset = []
     if(args.dataset == 'VOC'):
+#         train_dataset = VOCDetection(root=args.dataset_root,
+#                                      transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
         train_dataset = VOCDetection(root=args.dataset_root,
-                                     transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
+                                     transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+
 
     elif(args.dataset == 'COCO'):
         train_dataset = CocoDataset(root_dir=args.dataset_root, set_name='train2017', transform=get_augumentation(
             phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
 
+#     train_loader = DataLoader(train_dataset,
+#                                   batch_size=args.batch_size,
+#                                   num_workers=args.workers,
+#                                   shuffle=True,
+#                                   collate_fn=detection_collate,
+#                                   pin_memory=True)
     train_loader = DataLoader(train_dataset,
-                                  batch_size=args.batch_size,
-                                  num_workers=args.workers,
-                                  shuffle=True,
-                                  collate_fn=detection_collate,
-                                  pin_memory=True)
+                              batch_size=args.batch_size,
+                              num_workers=args.workers,
+                              shuffle=True,
+                              collate_fn=collater,
+                              pin_memory=True)
     # define loss function (criterion) , optimizer, scheduler
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
@@ -210,6 +238,7 @@ def main_worker(gpu, ngpus_per_node, args):
     for epoch in range(args.start_epoch, args.num_epoch):
         train(train_loader, model, scheduler, optimizer, epoch, args)
         state = {
+            'epoch': epoch,
             'parser': args,
             'state_dict': get_state_dict(model)
         }

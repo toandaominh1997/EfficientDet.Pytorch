@@ -55,7 +55,11 @@ class EfficientDet(nn.Module):
         self.freeze_bn()
         self.criterion = FocalLoss()
 
-    def forward(self, inputs, annotations):
+    def forward(self, inputs):
+        if self.training:
+            inputs, annotations = inputs
+        else:
+            inputs = inputs
         x = self.extract_feat(inputs)
         outs = self.bbox_head(x)
         classification = torch.cat([out for out in outs[0]], dim=1)
@@ -63,7 +67,6 @@ class EfficientDet(nn.Module):
         anchors = self.anchors(inputs)
         if self.is_training:
             return self.criterion(classification, regression, anchors, annotations, self.gpu)
-#             return classification, regression, anchors
         else:
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, inputs)
