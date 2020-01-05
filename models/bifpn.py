@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-from .conv_module import ConvModule
+from .conv_module import ConvModule, xavier_init
 import torch
 class BIFPN(nn.Module):
     def __init__(self,
