@@ -2,7 +2,6 @@ import yaml
 import numpy as np
 import torch
 import os
-import requests
 import socket
 import datetime
 import json
