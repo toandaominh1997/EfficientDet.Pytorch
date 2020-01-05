@@ -78,8 +78,8 @@ def val_coco(threshold=0.5):
         results = []
         image_ids = []
         for idx, (images, annotations) in enumerate(valid_dataloader):
-            images = images.to(device)
-            annotations = annotations.to(device)
+            images = images.to(args.device)
+            annotations = annotations.to(args.device)
             scores, labels, boxes = model(images)
             scores = scores.cpu()
             labels = labels.cpu()
