@@ -56,7 +56,7 @@ class EfficientDet(nn.Module):
         self.criterion = FocalLoss()
 
     def forward(self, inputs):
-        if self.training:
+        if self.is_training:
             inputs, annotations = inputs
         else:
             inputs = inputs
