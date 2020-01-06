@@ -35,6 +35,7 @@ python demo.py --weight ./checkpoint_VOC_efficientdet-d1_97.pth --threshold 0.6 
 &nbsp;
 
 ## Recent Update
+ - [06/01/2020] Support both DistributedDataParallel and DataParallel, change augmentation, eval_voc
  - [17/12/2019] Add Fast normalized fusion, Augmentation with Ratio, Change RetinaHead, Fix Support EfficientDet-D0->D7
  - [7/12/2019] Support EfficientDet-D0, EfficientDet-D1, EfficientDet-D2, EfficientDet-D3, EfficientDet-D4,... . Support change gradient accumulation steps, AdamW.
 ## Benchmarking
