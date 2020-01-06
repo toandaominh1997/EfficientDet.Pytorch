@@ -22,9 +22,10 @@ def calc_iou(a, b):
     return IoU
 
 class FocalLoss(nn.Module):
-    #def __init__(self):
+    def __init__(self):
+        super(FocalLoss, self).__init__()
 
-    def forward(self, classifications, regressions, anchors, annotations):
+    def forward(self, classifications, regressions, anchors, annotations, gpu):
         alpha = 0.25
         gamma = 2.0
         batch_size = classifications.shape[0]
@@ -47,8 +48,8 @@ class FocalLoss(nn.Module):
             bbox_annotation = bbox_annotation[bbox_annotation[:, 4] != -1]
 
             if bbox_annotation.shape[0] == 0:
-                regression_losses.append(torch.tensor(0).float().to(anchors.device))
-                classification_losses.append(torch.tensor(0).float().to(anchors.device))
+                regression_losses.append(torch.tensor(0).float().cuda(gpu, non_blocking=True))
+                classification_losses.append(torch.tensor(0).float().cuda(gpu, non_blocking=True))
 
                 continue
 
@@ -63,7 +64,7 @@ class FocalLoss(nn.Module):
 
             # compute the loss for classification
             targets = torch.ones(classification.shape) * -1
-            targets = targets.to(anchors.device)
+            targets = targets.cuda(gpu, non_blocking=True)
 
             targets[torch.lt(IoU_max, 0.4), :] = 0
 
@@ -77,7 +78,7 @@ class FocalLoss(nn.Module):
             targets[positive_indices, assigned_annotations[positive_indices, 4].long()] = 1
 
             alpha_factor = torch.ones(targets.shape) * alpha
-            alpha_factor = alpha_factor.to(anchors.device)
+            alpha_factor = alpha_factor.cuda(gpu, non_blocking=True)
             alpha_factor = torch.where(torch.eq(targets, 1.), alpha_factor, 1. - alpha_factor)
             focal_weight = torch.where(torch.eq(targets, 1.), 1. - classification, classification)
             focal_weight = alpha_factor * torch.pow(focal_weight, gamma)
@@ -87,7 +88,7 @@ class FocalLoss(nn.Module):
             # cls_loss = focal_weight * torch.pow(bce, gamma)
             cls_loss = focal_weight * bce
 
-            cls_loss = torch.where(torch.ne(targets, -1.0), cls_loss, torch.zeros(cls_loss.shape).to(anchors.device))
+            cls_loss = torch.where(torch.ne(targets, -1.0), cls_loss, torch.zeros(cls_loss.shape).cuda(gpu, non_blocking=True))
 
             classification_losses.append(cls_loss.sum()/torch.clamp(num_positive_anchors.float(), min=1.0))
 
@@ -118,7 +119,7 @@ class FocalLoss(nn.Module):
                 targets = torch.stack((targets_dx, targets_dy, targets_dw, targets_dh))
                 targets = targets.t()
 
-                targets = targets/torch.Tensor([[0.1, 0.1, 0.2, 0.2]]).to(anchors.device)
+                targets = targets/torch.Tensor([[0.1, 0.1, 0.2, 0.2]]).cuda(gpu, non_blocking=True)
 
 
                 negative_indices = 1 + (~positive_indices)
@@ -132,6 +133,6 @@ class FocalLoss(nn.Module):
                 )
                 regression_losses.append(regression_loss.mean())
             else:
-                regression_losses.append(torch.tensor(0).float().to(anchors.device))
+                regression_losses.append(torch.tensor(0).float().cuda(gpu, non_blocking=True))
 
         return torch.stack(classification_losses).mean(dim=0, keepdim=True), torch.stack(regression_losses).mean(dim=0, keepdim=True)
