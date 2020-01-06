@@ -45,7 +45,7 @@ We benchmark our code thoroughly on three datasets: pascal voc and coco, using f
 1). PASCAL VOC 2007 (Train/Test: 07trainval/07test, scale=600, ROI Align)
 
 model    | mAP |
----------|--------|------ |
+---------|--------|
 [EfficientDet-D0(with Weight)](https://drive.google.com/file/d/1r7MAyBfG5OK_9F_cU8yActUWxTHOuOpL/view?usp=sharing | 62.16
 
 
