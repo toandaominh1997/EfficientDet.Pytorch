@@ -63,7 +63,8 @@ class Detect(object):
         if(self.weights is not None):
             state_dict = checkpoint['state_dict']
             self.model.load_state_dict(state_dict)
-        self.model = self.model.cuda()
+        if torch.cuda.is_available():
+            self.model = self.model.cuda()
         self.model.eval()
 
     def process(self, file_name=None, img=None, show=False):
