@@ -1,122 +1,126 @@
-import os
-import os.path as osp
+from __future__ import print_function, division
 import sys
+import os
 import torch
-import torch.utils.data as data
-import torchvision.transforms as transforms
-import cv2
 import numpy as np
+import random
+import csv
 
-IMAGES = 'images'
-ANNOTATIONS = 'annotations'
-COCO_API = 'PythonAPI'
-INSTANCES_SET = 'instances_{}.json'
-COCO_CLASSES = ('person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
-                'train', 'truck', 'boat', 'traffic light', 'fire', 'hydrant',
-                'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog',
-                'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
-                'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
-                'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
-                'kite', 'baseball bat', 'baseball glove', 'skateboard',
-                'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
-                'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-                'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
-                'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
-                'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
-                'keyboard', 'cell phone', 'microwave oven', 'toaster', 'sink',
-                'refrigerator', 'book', 'clock', 'vase', 'scissors',
-                'teddy bear', 'hair drier', 'toothbrush')
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms, utils
+from torch.utils.data.sampler import Sampler
 
+from pycocotools.coco import COCO
 
-def get_label_map(label_file):
-    label_map = {}
-    labels = open(label_file, 'r')
-    for line in labels:
-        ids = line.split(',')
-        label_map[int(ids[0])] = int(ids[1])
-    return label_map
+import skimage.io
+import skimage.transform
+import skimage.color
+import skimage
+import cv2 
+from PIL import Image
+class CocoDataset(Dataset):
+    """Coco dataset."""
 
-
-class COCOAnnotationTransform(object):
-    """Transforms a COCO annotation into a Tensor of bbox coords and label index
-    Initilized with a dictionary lookup of classnames to indexes
-    """
-    def __init__(self):
-        self.label_map = get_label_map(osp.join('./datasets', 'coco_labels.txt'))
-
-    def __call__(self, target, width, height):
+    def __init__(self, root_dir, set_name='train2017', transform=None):
         """
         Args:
-            target (dict): COCO target json annotation as a python dict
-            height (int): height
-            width (int): width
-        Returns:
-            a list containing lists of bounding boxes  [bbox coords, class idx]
+            root_dir (string): COCO directory.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
         """
-        scale = np.array([width, height, width, height])
-        res = []
-        for obj in target:
-            if 'bbox' in obj:
-                bbox = obj['bbox']
-                bbox[2] += bbox[0]
-                bbox[3] += bbox[1]
-                label_idx = self.label_map[obj['category_id']] - 1
-                final_box = list(np.array(bbox))
-                final_box.append(label_idx)
-                res += [final_box]  # [xmin, ymin, xmax, ymax, label_idx]
-            else:
-                print("no bbox problem!")
-
-        return res  # [[xmin, ymin, xmax, ymax, label_idx], ... ]
-
-
-class COCODetection(data.Dataset):
-    """`MS Coco Detection <http://mscoco.org/dataset/#detections-challenge2016>`_ Dataset.
-    Args:
-        root (string): Root directory where images are downloaded to.
-        set_name (string): Name of the specific set of COCO images.
-        transform (callable, optional): A function/transform that augments the
-                                        raw images`
-        target_transform (callable, optional): A function/transform that takes
-        in the target (bbox) and transforms it.
-    """
-
-    def __init__(self, root, image_set='trainval35k', transform=None,
-                 target_transform=COCOAnnotationTransform(), dataset_name='MS COCO'):
-        sys.path.append(osp.join(root, COCO_API))
-        from pycocotools.coco import COCO
-        self.root = osp.join(root, IMAGES, image_set)
-        self.coco = COCO(osp.join(root, ANNOTATIONS,
-                                  INSTANCES_SET.format(image_set)))
-        self.ids = list(self.coco.imgToAnns.keys())
+        self.root_dir = root_dir
+        self.set_name = set_name
         self.transform = transform
-        self.target_transform = target_transform
-        self.name = dataset_name
 
-    def __getitem__(self, index):
-        img_id = self.ids[index]
-        target = self.coco.imgToAnns[img_id]
-        ann_ids = self.coco.getAnnIds(imgIds=img_id)
+        self.coco      = COCO(os.path.join(self.root_dir, 'annotations', 'instances_' + self.set_name + '.json'))
+        self.image_ids = self.coco.getImgIds()
 
-        target = self.coco.loadAnns(ann_ids)
-        path = osp.join(self.root, self.coco.loadImgs(img_id)[0]['file_name'])
-        assert osp.exists(path), 'Image path does not exist: {}'.format(path)
-        img = cv2.imread(osp.join(self.root, path))
-        height, width, _ = img.shape
-        if self.target_transform is not None:
-            target = self.target_transform(target, width, height)
-        target = np.array(target)
-        bbox = target[:, :4]
-        labels = target[:, 4]
-        if self.transform is not None:
-            annotation = {'image': img, 'bboxes': bbox, 'category_id': labels}
-            augmentation = self.transform(**annotation)
-            img = augmentation['image']
-            bbox = augmentation['bboxes']
-            labels = augmentation['category_id']
+        self.load_classes()
 
-        return {'image': img, 'bboxes': bbox, 'category_id': labels} 
+    def load_classes(self):
+        # load class names (name -> label)
+        categories = self.coco.loadCats(self.coco.getCatIds())
+        categories.sort(key=lambda x: x['id'])
 
+        self.classes             = {}
+        self.coco_labels         = {}
+        self.coco_labels_inverse = {}
+        for c in categories:
+            self.coco_labels[len(self.classes)] = c['id']
+            self.coco_labels_inverse[c['id']] = len(self.classes)
+            self.classes[c['name']] = len(self.classes)
+
+        # also load the reverse (label -> name)
+        self.labels = {}
+        for key, value in self.classes.items():
+            self.labels[value] = key
 
     def __len__(self):
-        return len(self.ids)
+        return len(self.image_ids)
+
+    def __getitem__(self, idx):
+
+        img = self.load_image(idx)
+        annot = self.load_annotations(idx)
+        sample = {'img': img, 'annot': annot}
+        if self.transform:
+            sample = self.transform(sample)
+        return sample
+
+
+    def load_image(self, image_index):
+        image_info = self.coco.loadImgs(self.image_ids[image_index])[0]
+        path       = os.path.join(self.root_dir, 'images', self.set_name, image_info['file_name'])
+        img = cv2.imread(path)
+
+        if len(img.shape) == 2:
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        return img
+
+    def load_annotations(self, image_index):
+        # get ground truth annotations
+        annotations_ids = self.coco.getAnnIds(imgIds=self.image_ids[image_index], iscrowd=False)
+        annotations     = np.zeros((0, 5))
+
+        # some images appear to miss annotations (like image with id 257034)
+        if len(annotations_ids) == 0:
+            return annotations
+
+        # parse annotations
+        coco_annotations = self.coco.loadAnns(annotations_ids)
+        for idx, a in enumerate(coco_annotations):
+
+            # some annotations have basically no width / height, skip them
+            if a['bbox'][2] < 1 or a['bbox'][3] < 1:
+                continue
+
+            annotation        = np.zeros((1, 5))
+            annotation[0, :4] = a['bbox']
+            annotation[0, 4]  = self.coco_label_to_label(a['category_id'])
+            annotations       = np.append(annotations, annotation, axis=0)
+
+        # transform from [x, y, w, h] to [x1, y1, x2, y2]
+        annotations[:, 2] = annotations[:, 0] + annotations[:, 2]
+        annotations[:, 3] = annotations[:, 1] + annotations[:, 3]
+
+        return annotations
+
+    def coco_label_to_label(self, coco_label):
+        return self.coco_labels_inverse[coco_label]
+
+
+    def label_to_coco_label(self, label):
+        return self.coco_labels[label]
+
+    def image_aspect_ratio(self, image_index):
+        image = self.coco.loadImgs(self.image_ids[image_index])[0]
+        return float(image['width']) / float(image['height'])
+
+    def num_classes(self):
+        return 80
+
+if __name__=='__main__':
+    from augmentation import get_augumentation
+    dataset = CocoDataset(root_dir = '/root/data/coco', set_name='trainval35k', transform=get_augumentation(phase='train'))
+    sample = dataset[0]
+    print('sample: ', sample)

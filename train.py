@@ -30,8 +30,9 @@ from torch.utils.data import DataLoader
 
 from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
-from datasets import VOCDetection, COCODetection, CocoDataset, get_augumentation, detection_collate, Resizer, Normalizer, Augmenter, collater
+from datasets import VOCDetection, CocoDataset, get_augumentation, detection_collate, Resizer, Normalizer, Augmenter, collater
 from utils import EFFICIENTDET, get_state_dict
+from eval import evaluate, evaluate_coco
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO'],
@@ -95,6 +96,7 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
     start = time.time()
     total_loss = []
     model.train()
+    model.module.is_training = True
     optimizer.zero_grad()
     for idx, (images, annotations) in enumerate(train_loader):
         if args.gpu is not None:
@@ -133,7 +135,18 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
         }
     for key, value in result.items():
         print('    {:15s}: {}'.format(str(key), value))
-
+def test(dataset, model, epoch, args):
+    print("{} epoch: \t start validation....".format(epoch))
+    
+    model.eval()
+    model.module.is_training = False
+    with torch.no_grad():
+        if(args.dataset == 'VOC'):
+            evaluate(dataset, model)
+        else:
+            evaluate_coco(dataset, model)
+    
+            
 def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
     if args.gpu is not None:
@@ -149,6 +162,33 @@ def main_worker(gpu, ngpus_per_node, args):
             args.rank = args.rank * ngpus_per_node + gpu
         dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                 world_size=args.world_size, rank=args.rank)
+    
+    # Training dataset
+    train_dataset = []
+    if(args.dataset == 'VOC'):
+        train_dataset = VOCDetection(root=args.dataset_root,
+                                     transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+        valid_dataset = VOCDetection(root=args.dataset_root, image_sets=[('2007', 'test')],
+                                     transform=transforms.Compose([Normalizer(), Resizer()]))
+        args.num_class = train_dataset.num_classes()
+    elif(args.dataset == 'COCO'):
+        train_dataset = CocoDataset(root_dir=args.dataset_root, set_name='train2017', transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+        valid_dataset = CocoDataset(root_dir=args.dataset_root, set_name='val2017', transform=transforms.Compose([Normalizer(), Resizer()]))
+        args.num_class = train_dataset.num_classes()
+
+    train_loader = DataLoader(train_dataset,
+                              batch_size=args.batch_size,
+                              num_workers=args.workers,
+                              shuffle=True,
+                              collate_fn=collater,
+                              pin_memory=True)
+    valid_loader = DataLoader(valid_dataset,
+                              batch_size=1,
+                              num_workers=args.workers,
+                              shuffle=False,
+                              collate_fn=collater,
+                              pin_memory=True)
+    
     checkpoint = []
     if(args.resume is not None):
         if os.path.isfile(args.resume):
@@ -162,7 +202,7 @@ def main_worker(gpu, ngpus_per_node, args):
         params = checkpoint['parser']
         args.num_class = params.num_class
         args.network = params.network
-        args.start_epoch = params.start_epoch+1
+        args.start_epoch = checkpoint['epoch'] + 1
         del params
         
 
@@ -204,32 +244,7 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         print('Run with DataParallel ....')
         model = torch.nn.DataParallel(model).cuda()
-
-    # Training dataset
-    train_dataset = []
-    if(args.dataset == 'VOC'):
-#         train_dataset = VOCDetection(root=args.dataset_root,
-#                                      transform=get_augumentation(phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
-        train_dataset = VOCDetection(root=args.dataset_root,
-                                     transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
-
-
-    elif(args.dataset == 'COCO'):
-        train_dataset = CocoDataset(root_dir=args.dataset_root, set_name='train2017', transform=get_augumentation(
-            phase='train', width=EFFICIENTDET[args.network]['input_size'], height=EFFICIENTDET[args.network]['input_size']))
-
-#     train_loader = DataLoader(train_dataset,
-#                                   batch_size=args.batch_size,
-#                                   num_workers=args.workers,
-#                                   shuffle=True,
-#                                   collate_fn=detection_collate,
-#                                   pin_memory=True)
-    train_loader = DataLoader(train_dataset,
-                              batch_size=args.batch_size,
-                              num_workers=args.workers,
-                              shuffle=True,
-                              collate_fn=collater,
-                              pin_memory=True)
+    
     # define loss function (criterion) , optimizer, scheduler
     optimizer = optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
@@ -237,6 +252,10 @@ def main_worker(gpu, ngpus_per_node, args):
 
     for epoch in range(args.start_epoch, args.num_epoch):
         train(train_loader, model, scheduler, optimizer, epoch, args)
+        
+#         if (epoch+1)%1==0:
+#             test(valid_dataset, model, epoch, args)
+        
         state = {
             'epoch': epoch,
             'parser': args,
