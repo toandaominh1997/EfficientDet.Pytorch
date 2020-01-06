@@ -130,9 +130,14 @@ class VOCDetection(data.Dataset):
 
     def __len__(self):
         return len(self.ids)
-    def __num_class__(self):
+    def num_classes(self):
         return len(VOC_CLASSES)
     def label_to_name(self, label):
         return VOC_CLASSES[label]
     
-    
+    def load_annotations(self, index):
+        img_id = self.ids[index]
+        anno = ET.parse(self._annopath%img_id).getroot()
+        gt = self.target_transform(anno, 1, 1)
+        gt = np.array(gt)
+        return gt 
