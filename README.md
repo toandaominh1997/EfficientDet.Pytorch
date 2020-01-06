@@ -44,9 +44,9 @@ We benchmark our code thoroughly on three datasets: pascal voc and coco, using f
 
 1). PASCAL VOC 2007 (Train/Test: 07trainval/07test, scale=600, ROI Align)
 
-model    | #GPUs | batch size | lr        | lr_decay | max_epoch     |  time/epoch | mem/GPU | mAP
----------|--------|-----|--------|-----|-----|-------|--------|-----
-[EfficientDet-D1(with Weight)](https://drive.google.com/open?id=1evKg_s2kTYG-AUeVvlq9cliEEHlJ9TQQ) | 2 | 16 | 1e-4 | 30   | 100   |  20.min | 20100 MB   | updating
+model    | mAP |
+---------|--------|------ |
+[EfficientDet-D0(with Weight)](https://drive.google.com/file/d/1r7MAyBfG5OK_9F_cU8yActUWxTHOuOpL/view?usp=sharing | 62.16
 
 
 ## Installation
