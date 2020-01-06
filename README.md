@@ -92,18 +92,27 @@ python train.py --network effcientdet-d0  # Example
 
   - With VOC Dataset:
   ```Shell
-  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network effcientdet-d0 --batch_size 32 # Example
+  # DataParallel
+  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network effcientdet-d0 --batch_size 32 
+  # DistributedDataParallel with backend nccl
+  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network effcientdet-d0 --batch_size 32 --multiprocessing-distributed
   ```
   - With COCO Dataset:
   ```Shell
-  python train.py --dataset COCO --dataset_root /root/data/coco/ --network effcientdet-d0 --batch_size 32 # Example
+  # DataParallel
+  python train.py --dataset COCO --dataset_root ~/data/coco/ --network effcientdet-d0 --batch_size 32
+  # DistributedDataParallel with backend nccl
+  python train.py --dataset COCO --dataset_root ~/data/coco/ --network effcientdet-d0 --batch_size 32 --multiprocessing-distributed
   ```
 
 ## Evaluation
 To evaluate a trained network:
-```Shell
-python eval.py
-```
+ - With VOC Dataset:
+    ```Shell
+    python eval_voc.py --dataset_root ~/data/VOCdevkit --weight ./checkpoint_VOC_efficientdet-d0_261.pth
+    ```
+- With COCO Dataset
+comming soon.
 ## Demo
 
 ```Shell
