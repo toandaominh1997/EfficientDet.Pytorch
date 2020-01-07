@@ -116,28 +116,30 @@ class VOCDetection(data.Dataset):
         if self.transform is not None:
             sample = self.transform(sample)
         return sample
-        
+
         bbox = target[:, :4]
         labels = target[:, 4]
-        
+
         if self.transform is not None:
             annotation = {'image': img, 'bboxes': bbox, 'category_id': labels}
             augmentation = self.transform(**annotation)
             img = augmentation['image']
             bbox = augmentation['bboxes']
             labels = augmentation['category_id']
-        return {'image': img, 'bboxes': bbox, 'category_id': labels} 
+        return {'image': img, 'bboxes': bbox, 'category_id': labels}
 
     def __len__(self):
         return len(self.ids)
+
     def num_classes(self):
         return len(VOC_CLASSES)
+
     def label_to_name(self, label):
         return VOC_CLASSES[label]
-    
+
     def load_annotations(self, index):
         img_id = self.ids[index]
-        anno = ET.parse(self._annopath%img_id).getroot()
+        anno = ET.parse(self._annopath % img_id).getroot()
         gt = self.target_transform(anno, 1, 1)
         gt = np.array(gt)
-        return gt 
+        return gt

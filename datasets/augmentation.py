@@ -35,7 +35,7 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
             albu.HorizontalFlip(p=0.5),
             albu.VerticalFlip(p=0.5),
         ])
-    if(phase == 'test' or phase=='valid'):
+    if(phase == 'test' or phase == 'valid'):
         list_transforms.extend([
             albu.Resize(height=height, width=width)
         ])
@@ -64,6 +64,7 @@ def detection_collate(batch):
                 annot_padded[idx, :len(annot), :4] = annot
                 annot_padded[idx, :len(annot), 4] = lab
     return (torch.stack(imgs, 0), torch.FloatTensor(annot_padded))
+
 
 def collater(data):
     imgs = [s['img'] for s in data]

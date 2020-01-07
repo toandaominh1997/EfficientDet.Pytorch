@@ -114,3 +114,4 @@ venv.bak/
 
 saved/
 weights/
+val2017_bbox_results.json

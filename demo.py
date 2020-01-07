@@ -47,18 +47,19 @@ class Detect(object):
         self.transform = get_augumentation(phase='test')
         if(self.weights is not None):
             print('Load pretrained Model')
-            checkpoint = torch.load(self.weights, map_location=lambda storage, loc: storage)
+            checkpoint = torch.load(
+                self.weights, map_location=lambda storage, loc: storage)
             params = checkpoint['parser']
             num_class = params.num_class
             network = params.network
 
         self.model = EfficientDet(num_classes=num_class,
-                     network=network,
-                     W_bifpn=EFFICIENTDET[network]['W_bifpn'],
-                     D_bifpn=EFFICIENTDET[network]['D_bifpn'],
-                     D_class=EFFICIENTDET[network]['D_class'],
-                     is_training=False
-                     )
+                                  network=network,
+                                  W_bifpn=EFFICIENTDET[network]['W_bifpn'],
+                                  D_bifpn=EFFICIENTDET[network]['D_bifpn'],
+                                  D_class=EFFICIENTDET[network]['D_class'],
+                                  is_training=False
+                                  )
 
         if(self.weights is not None):
             state_dict = checkpoint['state_dict']

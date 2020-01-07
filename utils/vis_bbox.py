@@ -1,5 +1,8 @@
+import cv2
+from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
+
 
 def vis_bbox(img, bbox, label=None, score=None,
              instance_colors=None, alpha=1., linewidth=2., ax=None):
@@ -36,7 +39,7 @@ def vis_bbox(img, bbox, label=None, score=None,
         Returns the Axes object with the plot for further tweaking.
     from: https://github.com/chainer/chainercv
     """
-             
+
     if label is not None and not len(bbox) == len(label):
         raise ValueError('The length of label must be same as that of bbox')
     if score is not None and not len(bbox) == len(score):
@@ -76,7 +79,7 @@ def vis_bbox(img, bbox, label=None, score=None,
 
         caption = []
         caption.append(label[i])
-        if(len(score)>0):
+        if(len(score) > 0):
             sc = score[i]
             caption.append('{}'.format(sc))
 
@@ -90,9 +93,8 @@ def vis_bbox(img, bbox, label=None, score=None,
                     bbox={'facecolor': face_color, 'edgecolor': face_color, 'alpha': 1, 'pad': 0})
     return fig, ax
 
-from PIL import Image
-import cv2 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     img = cv2.imread('./../docs/output.png')
     print('img: ', img.shape)
     img = np.array(img)
@@ -101,11 +103,11 @@ if __name__=='__main__':
     label = np.array(['toan'])
     score = np.array([100])
     ax, fig = vis_bbox(img=img,
-            bbox=bbox,
-            label = label,
-            score=score,
-            label_names= label_names
-            )
+                       bbox=bbox,
+                       label=label,
+                       score=score,
+                       label_names=label_names
+                       )
     fig.savefig('kaka.png')
     fig.show()
     plt.show()

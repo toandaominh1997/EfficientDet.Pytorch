@@ -1,11 +1,11 @@
-import torch 
+import torch
 from models import EfficientDet
 from models.efficientnet import EfficientNet
 
 if __name__ == '__main__':
 
     inputs = torch.randn(5, 3, 512, 512)
-    
+
     # Test EfficientNet
     model = EfficientNet.from_pretrained('efficientnet-b0')
     inputs = torch.randn(4, 3, 512, 512)
@@ -13,9 +13,7 @@ if __name__ == '__main__':
     for idx, p in enumerate(P):
         print('P{}: {}'.format(idx, p.size()))
 
-    # print('model: ', model) 
-
-
+    # print('model: ', model)
 
     # Test inference
     model = EfficientDet(num_classes=20, is_training=False)

@@ -16,8 +16,10 @@ import skimage.io
 import skimage.transform
 import skimage.color
 import skimage
-import cv2 
+import cv2
 from PIL import Image
+
+
 class CocoDataset(Dataset):
     """Coco dataset."""
 
@@ -32,7 +34,8 @@ class CocoDataset(Dataset):
         self.set_name = set_name
         self.transform = transform
 
-        self.coco      = COCO(os.path.join(self.root_dir, 'annotations', 'instances_' + self.set_name + '.json'))
+        self.coco = COCO(os.path.join(self.root_dir, 'annotations',
+                                      'instances_' + self.set_name + '.json'))
         self.image_ids = self.coco.getImgIds()
 
         self.load_classes()
@@ -42,8 +45,8 @@ class CocoDataset(Dataset):
         categories = self.coco.loadCats(self.coco.getCatIds())
         categories.sort(key=lambda x: x['id'])
 
-        self.classes             = {}
-        self.coco_labels         = {}
+        self.classes = {}
+        self.coco_labels = {}
         self.coco_labels_inverse = {}
         for c in categories:
             self.coco_labels[len(self.classes)] = c['id']
@@ -67,10 +70,10 @@ class CocoDataset(Dataset):
             sample = self.transform(sample)
         return sample
 
-
     def load_image(self, image_index):
         image_info = self.coco.loadImgs(self.image_ids[image_index])[0]
-        path       = os.path.join(self.root_dir, 'images', self.set_name, image_info['file_name'])
+        path = os.path.join(self.root_dir, 'images',
+                            self.set_name, image_info['file_name'])
         img = cv2.imread(path)
 
         if len(img.shape) == 2:
@@ -79,8 +82,9 @@ class CocoDataset(Dataset):
 
     def load_annotations(self, image_index):
         # get ground truth annotations
-        annotations_ids = self.coco.getAnnIds(imgIds=self.image_ids[image_index], iscrowd=False)
-        annotations     = np.zeros((0, 5))
+        annotations_ids = self.coco.getAnnIds(
+            imgIds=self.image_ids[image_index], iscrowd=False)
+        annotations = np.zeros((0, 5))
 
         # some images appear to miss annotations (like image with id 257034)
         if len(annotations_ids) == 0:
@@ -94,10 +98,10 @@ class CocoDataset(Dataset):
             if a['bbox'][2] < 1 or a['bbox'][3] < 1:
                 continue
 
-            annotation        = np.zeros((1, 5))
+            annotation = np.zeros((1, 5))
             annotation[0, :4] = a['bbox']
-            annotation[0, 4]  = self.coco_label_to_label(a['category_id'])
-            annotations       = np.append(annotations, annotation, axis=0)
+            annotation[0, 4] = self.coco_label_to_label(a['category_id'])
+            annotations = np.append(annotations, annotation, axis=0)
 
         # transform from [x, y, w, h] to [x1, y1, x2, y2]
         annotations[:, 2] = annotations[:, 0] + annotations[:, 2]
@@ -107,7 +111,6 @@ class CocoDataset(Dataset):
 
     def coco_label_to_label(self, coco_label):
         return self.coco_labels_inverse[coco_label]
-
 
     def label_to_coco_label(self, label):
         return self.coco_labels[label]
@@ -119,8 +122,10 @@ class CocoDataset(Dataset):
     def num_classes(self):
         return 80
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     from augmentation import get_augumentation
-    dataset = CocoDataset(root_dir = '/root/data/coco', set_name='trainval35k', transform=get_augumentation(phase='train'))
+    dataset = CocoDataset(root_dir='/root/data/coco', set_name='trainval35k',
+                          transform=get_augumentation(phase='train'))
     sample = dataset[0]
     print('sample: ', sample)

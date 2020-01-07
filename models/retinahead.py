@@ -1,13 +1,15 @@
 import numpy as np
 import torch.nn as nn
 
-from .conv_module import ConvModule, bias_init_with_prob, normal_init
+from .module import ConvModule, bias_init_with_prob, normal_init
 from six.moves import map, zip
+
 
 def multi_apply(func, *args, **kwargs):
     pfunc = partial(func, **kwargs) if kwargs else func
     map_results = map(pfunc, *args)
     return tuple(map(list, zip(*map_results)))
+
 
 class RetinaHead(nn.Module):
     """
@@ -29,7 +31,7 @@ class RetinaHead(nn.Module):
     """
 
     def __init__(self,
-                num_classes,
+                 num_classes,
                  in_channels,
                  feat_channels=256,
                  anchor_scales=[8, 16, 32],
@@ -59,6 +61,7 @@ class RetinaHead(nn.Module):
         self.cls_out_channels = num_classes
         self.num_anchors = len(self.anchor_ratios) * len(self.anchor_scales)
         self._init_layers()
+
     def _init_layers(self):
         self.relu = nn.ReLU(inplace=True)
         self.cls_convs = nn.ModuleList()
@@ -108,19 +111,20 @@ class RetinaHead(nn.Module):
             cls_feat = cls_conv(cls_feat)
         for reg_conv in self.reg_convs:
             reg_feat = reg_conv(reg_feat)
-        
+
         cls_score = self.retina_cls(cls_feat)
         cls_score = self.output_act(cls_score)
         # out is B x C x W x H, with C = n_classes + n_anchors
         cls_score = cls_score.permute(0, 2, 3, 1)
         batch_size, width, height, channels = cls_score.shape
-        cls_score = cls_score.view(batch_size, width, height, self.num_anchors, self.num_classes)
+        cls_score = cls_score.view(
+            batch_size, width, height, self.num_anchors, self.num_classes)
         cls_score = cls_score.contiguous().view(x.size(0), -1, self.num_classes)
-
 
         bbox_pred = self.retina_reg(reg_feat)
         bbox_pred = bbox_pred.permute(0, 2, 3, 1)
         bbox_pred = bbox_pred.contiguous().view(bbox_pred.size(0), -1, 4)
         return cls_score, bbox_pred
+
     def forward(self, feats):
         return multi_apply(self.forward_single, feats)
