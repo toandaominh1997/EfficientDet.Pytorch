@@ -5,4 +5,7 @@ jobs:
    - image: toandaominh1997/pytoan:latest
   steps:
    - checkout # check out the code in the project directory
-   - run: python test.py
+   - run: |
+       pip install flake8
+       flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+       python test.py
