@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-from .module import ConvModule
+from .module import ConvModule, xavier_init
 import torch
 
 
@@ -85,6 +85,7 @@ class BIFPN(nn.Module):
                     activation=self.activation,
                     inplace=False)
                 self.fpn_convs.append(extra_fpn_conv)
+        self.init_weights()
 
     # default init_weights for conv(msra) and norm in ConvModule
     def init_weights(self):
