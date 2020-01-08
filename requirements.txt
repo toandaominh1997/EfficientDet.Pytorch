@@ -4,3 +4,5 @@ torch
 torchvision
 pytoan
 albumentations
+Cython
+pycocotools
