@@ -25,7 +25,7 @@ parser.add_argument('-it', '--iou_threshold', default=0.6,
 parser.add_argument('-w', '--weight', default='./weights/voc0712.pth',
                     type=str, help='Weight model path')
 parser.add_argument('-c', '--cam',
-                    action="store_true", help='Use camera')
+                    help='Use camera')
 parser.add_argument('-f', '--file_name', default='pic.jpg',
                     help='Image path')
 parser.add_argument('--num_class', default=21, type=int,
@@ -84,6 +84,8 @@ class Detect(object):
             bbox_scores = list()
             colors = list()
             for j in range(scores.shape[0]):
+                if scores[j] < args.threshold:
+                    continue
                 bbox = transformed_anchors[[j], :][0].data.cpu().numpy()
                 x1 = int(bbox[0]*origin_img.shape[1]/self.size_image[1])
                 y1 = int(bbox[1]*origin_img.shape[0]/self.size_image[0])
@@ -129,8 +131,11 @@ class Detect(object):
             else:
                 return origin_img
 
-    def camera(self):
-        cap = cv2.VideoCapture(0)
+    def camera(self, video_path=None):
+        if video_path is not None:
+            cap = cv2.VideoCapture(video_path)
+        else:
+            cap = cv2.VideoCapture(0)
         if not cap.isOpened():
             print("Unable to open camera")
             exit(-1)
@@ -174,6 +179,6 @@ if __name__ == '__main__':
     detect = Detect(weights=args.weight)
     print('cam: ', args.cam)
     if args.cam:
-        detect.camera()
+        detect.camera(args.cam)
     else:
         detect.process(file_name=args.file_name, show=True)

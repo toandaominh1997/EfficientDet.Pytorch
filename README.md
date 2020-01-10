@@ -116,6 +116,7 @@ To evaluate a trained network:
 comming soon.
 ## Demo
 
+### Image
 ```Shell
 python demo.py --threshold 0.5 --iou_threshold 0.5 --score --weight checkpoint_VOC_efficientdet-d1_34.pth --file_name demo.png
 ```
@@ -126,11 +127,16 @@ Output:
 <img src= "./docs/demo.png">
 </p>
 
-## Webcam Demo
+### Webcam Demo
 
 You can use a webcam in a real-time demo by running:
 ```Shell
-python demo.py --threshold 0.5 --iou_threshold 0.5 --cam --score --weight checkpoint_VOC_efficientdet-d1_34.pth
+python demo.py --threshold 0.5 --iou_threshold 0.5 --score --weight checkpoint_VOC_efficientdet-d1_34.pth --cam
+```
+
+### Video Demo
+```Shell
+python demo.py --threshold 0.5 --iou_threshold 0.5 --score --weight checkpoint_VOC_efficientdet-d1_34.pth --cam /path/to/video
 ```
 
 ## Performance
