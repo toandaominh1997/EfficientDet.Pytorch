@@ -186,8 +186,10 @@ class BiFPNModule(nn.Module):
             inputs_clone.append(in_tensor.clone())
 
         for i in range(levels - 1, 0, -1):
+            scale_factor = [pathtd[i - 1].shape[2] / pathtd[i].shape[2],
+                            pathtd[i - 1].shape[3] / pathtd[i].shape[3]]
             pathtd[i - 1] = (w1[0, i-1]*pathtd[i - 1] + w1[1, i-1]*F.interpolate(
-                pathtd[i], scale_factor=2, mode='nearest'))/(w1[0, i-1] + w1[1, i-1] + self.eps)
+                pathtd[i], scale_factor=scale_factor, mode='nearest'))/(w1[0, i-1] + w1[1, i-1] + self.eps)
             pathtd[i - 1] = self.bifpn_convs[idx_bifpn](pathtd[i - 1])
             idx_bifpn = idx_bifpn + 1
         # build down-top
