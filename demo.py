@@ -38,13 +38,13 @@ class Detect(object):
         dir_name: Folder or image_file
     """
 
-    def __init__(self, weights, num_class=21, network='efficientdet-d0', size_image=(512, 512)):
+    def __init__(self, weights, num_class=21, network='efficientdet-d0', size_image=(720, 1280)):
         super(Detect,  self).__init__()
         self.weights = weights
         self.size_image = size_image
         self.device = torch.device(
             "cuda:0" if torch.cuda.is_available() else 'cpu')
-        self.transform = get_augumentation(phase='test')
+        self.transform = get_augumentation('test', self.size_image[1], self.size_image[0])
         if(self.weights is not None):
             print('Load pretrained Model')
             checkpoint = torch.load(
@@ -61,7 +61,7 @@ class Detect(object):
                                   is_training=False
                                   )
 
-        if(self.weights is not None):
+        if self.weights is not None:
             state_dict = checkpoint['state_dict']
             self.model.load_state_dict(state_dict)
         if torch.cuda.is_available():
@@ -84,6 +84,8 @@ class Detect(object):
             bbox_scores = list()
             colors = list()
             for j in range(scores.shape[0]):
+                if scores[j] < args.threshold:
+                    continue
                 bbox = transformed_anchors[[j], :][0].data.cpu().numpy()
                 x1 = int(bbox[0]*origin_img.shape[1]/self.size_image[1])
                 y1 = int(bbox[1]*origin_img.shape[0]/self.size_image[0])

@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 import math
 from models.efficientnet import EfficientNet
 from models.bifpn import BIFPN
@@ -63,7 +64,8 @@ class EfficientDet(nn.Module):
         outs = self.bbox_head(x)
         classification = torch.cat([out for out in outs[0]], dim=1)
         regression = torch.cat([out for out in outs[1]], dim=1)
-        anchors = self.anchors(inputs)
+        feature_shapes = [np.array([_.shape[2], _.shape[3]]) for _ in x]
+        anchors = self.anchors(inputs, feature_shapes)
         if self.is_training:
             return self.criterion(classification, regression, anchors, annotations)
         else:
