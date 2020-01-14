@@ -228,6 +228,7 @@ def main_worker(gpu, ngpus_per_node, args):
     model = EfficientDet(num_classes=args.num_class,
                          network=args.network,
                          W_bifpn=EFFICIENTDET[args.network]['W_bifpn'],
+                         in_bifpn=EFFICIENTDET[args.network]['in_bifpn'],
                          D_bifpn=EFFICIENTDET[args.network]['D_bifpn'],
                          D_class=EFFICIENTDET[args.network]['D_class']
                          )

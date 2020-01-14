@@ -48,12 +48,16 @@ class BIFPN(nn.Module):
         self.lateral_convs = nn.ModuleList()
         self.fpn_convs = nn.ModuleList()
         self.stack_bifpn_convs = nn.ModuleList()
-
+        lateral_kernel = [1, 1, 1, 3, 3]
+        lateral_stride = [1, 1, 1, 2, 2]
+        lateral_padding = [0, 0, 0, 1, 1]
         for i in range(self.start_level, self.backbone_end_level):
             l_conv = ConvModule(
                 in_channels[i],
                 out_channels,
-                1,
+                lateral_kernel[i],
+                stride=lateral_stride[i],
+                padding=lateral_padding[i],
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg if not self.no_norm_on_lateral else None,
                 activation=self.activation,
@@ -94,14 +98,15 @@ class BIFPN(nn.Module):
                 xavier_init(m, distribution='uniform')
 
     def forward(self, inputs):
-        assert len(inputs) == len(self.in_channels)
-
-        # build laterals
-        laterals = [
-            lateral_conv(inputs[i + self.start_level])
-            for i, lateral_conv in enumerate(self.lateral_convs)
-        ]
-
+        assert len(inputs)+2 == len(self.in_channels)
+        c3, c4, c5 = inputs
+        p3 = self.lateral_convs[0](inputs[0])
+        p4 = self.lateral_convs[1](inputs[1])
+        p5 = self.lateral_convs[2](inputs[2])
+        p6 = self.lateral_convs[3](inputs[2])
+        p7 = self.lateral_convs[4](p6)
+        laterals = [p3, p4, p5, p6, p7]
+        
         # part 1: build top-down and down-top path with stack
         used_backbone_levels = len(laterals)
         for bifpn_module in self.stack_bifpn_convs:
