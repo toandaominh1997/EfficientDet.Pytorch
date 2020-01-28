@@ -46,6 +46,7 @@ class MBConvBlock(nn.Module):
                 in_channels=inp, out_channels=oup, kernel_size=1, bias=False)
             self._bn0 = nn.BatchNorm2d(
                 num_features=oup, momentum=self._bn_mom, eps=self._bn_eps)
+            
         # Depthwise convolution phase
         k = self._block_args.kernel_size
         s = self._block_args.stride
@@ -176,6 +177,8 @@ class EfficientNet(nn.Module):
             num_features=out_channels, momentum=bn_mom, eps=bn_eps)
 
         # Final linear layer
+        # Won't be used here as this backbone is only used to output features maps
+        # As inputs for FPN / biFPN in object detection tasks
         self._avg_pooling = nn.AdaptiveAvgPool2d(1)
         self._dropout = nn.Dropout(self._global_params.dropout_rate)
         self._fc = nn.Linear(out_channels, self._global_params.num_classes)
@@ -188,7 +191,7 @@ class EfficientNet(nn.Module):
             block.set_swish(memory_efficient)
 
     def extract_features(self, inputs):
-        """ Returns output of the final convolution layer """
+        """Blocks repeat themselves, only keep the last output of each repeated phase"""
         # Stem
         x = self._swish(self._bn0(self._conv_stem(inputs)))
 
@@ -202,6 +205,7 @@ class EfficientNet(nn.Module):
                 drop_connect_rate *= float(idx) / len(self._blocks)
             x = block(x, drop_connect_rate=drop_connect_rate)
             num_repeat = num_repeat + 1
+            # add the last output map after block repetition
             if(num_repeat == self._blocks_args[index].num_repeat):
                 num_repeat = 0
                 index = index + 1
@@ -209,10 +213,9 @@ class EfficientNet(nn.Module):
         return P
 
     def forward(self, inputs):
-        """ Calls extract_features to extract features, applies final linear layer, and returns logits. """
+        """ Calls extract_features to extract features and returns the features maps of each blocks (after repetition)"""
         # Convolution layers
-        P = self.extract_features(inputs)
-        return P
+        return self.extract_features(inputs)
 
     @classmethod
     def from_name(cls, model_name, override_params=None):
@@ -222,11 +225,11 @@ class EfficientNet(nn.Module):
         return cls(blocks_args, global_params)
 
     @classmethod
-    def from_pretrained(cls, model_name, num_classes=1000, in_channels=3):
+    def from_pretrained(cls, model_name, num_classes=1000, in_channels=3, advprop=False):
         model = cls.from_name(model_name, override_params={
                               'num_classes': num_classes})
         load_pretrained_weights(
-            model, model_name, load_fc=(num_classes == 1000))
+            model, model_name, load_fc=(num_classes == 1000), advprop=advprop)
         if in_channels != 3:
             Conv2d = get_same_padding_conv2d(
                 image_size=model._global_params.image_size)
@@ -235,14 +238,6 @@ class EfficientNet(nn.Module):
                 in_channels, out_channels, kernel_size=3, stride=2, bias=False)
         return model
 
-    @classmethod
-    def from_pretrained(cls, model_name, num_classes=1000):
-        model = cls.from_name(model_name, override_params={
-                              'num_classes': num_classes})
-        load_pretrained_weights(
-            model, model_name, load_fc=(num_classes == 1000))
-
-        return model
 
     @classmethod
     def get_image_size(cls, model_name):
@@ -251,11 +246,11 @@ class EfficientNet(nn.Module):
         return res
 
     @classmethod
-    def _check_model_name_is_valid(cls, model_name, also_need_pretrained_weights=False):
-        """ Validates model name. None that pretrained weights are only available for
-        the first four models (efficientnet-b{i} for i in 0,1,2,3) at the moment. """
-        num_models = 4 if also_need_pretrained_weights else 8
-        valid_models = ['efficientnet-b'+str(i) for i in range(num_models)]
+    def _check_model_name_is_valid(cls, model_name):
+        """ Validates model name. Note that only pretrained weights 
+            with adverseral training are available for EfficientNet-B8.
+        """
+        valid_models = ['efficientnet-b'+str(i) for i in range(9)]
         if model_name not in valid_models:
             raise ValueError('model_name should be one of: ' +
                              ', '.join(valid_models))
@@ -274,4 +269,6 @@ if __name__ == '__main__':
     P = model(inputs)
     for idx, p in enumerate(P):
         print('P{}: {}'.format(idx, p.size()))
-    # print('model: ', model)
+    verbose = False
+    if verbose:
+        print('model: ', model)
