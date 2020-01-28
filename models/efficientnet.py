@@ -246,7 +246,7 @@ class EfficientNet(nn.Module):
         return res
 
     @classmethod
-    def _check_model_name_is_valid(cls, model_name, also_need_pretrained_weights=False):
+    def _check_model_name_is_valid(cls, model_name):
         """ Validates model name. Note that only pretrained weights 
             with adverseral training are available for EfficientNet-B8.
         """
