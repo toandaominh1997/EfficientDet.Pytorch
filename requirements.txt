@@ -4,3 +4,4 @@ torch
 torchvision
 pytoan
 albumentations
+opencv-python==4.1.2.30
