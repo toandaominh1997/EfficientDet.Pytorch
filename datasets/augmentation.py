@@ -67,6 +67,7 @@ def detection_collate(batch):
 
 
 def collater(data):
+    data = [x for x in data if x is not None]
     imgs = [s['img'] for s in data]
     annots = [s['annot'] for s in data]
     scales = [s['scale'] for s in data]
