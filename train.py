@@ -27,6 +27,14 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 
+try:
+    from apex.parallel import DistributedDataParallel as DDP
+    from apex.fp16_utils import *
+    from apex import amp, optimizers
+    from apex.multi_tensor_apply import multi_tensor_applier
+except ImportError:
+    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
+
 from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
 from datasets import VOCDetection, CocoDataset, get_augumentation, detection_collate, Resizer, Normalizer, Augmenter, collater
@@ -88,6 +96,9 @@ parser.add_argument(
     'N processes per node, which has N GPUs. This is the '
     'fastest way to use PyTorch for either single node or '
     'multi node data parallel training')
+parser.add_argument('--freeze', action='store_true', help='freeze EfficientNet-d{x} backbone')
+parser.add_argument('--mixed_training', action='store_true',
+                    help='Use AMP mixed training optimization O1')
 
 iteration = 1
 
@@ -111,7 +122,12 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
         if bool(loss == 0):
             print('loss equal zero(0)')
             continue
-        loss.backward()
+        if args.mixed_training:
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
+        else:
+            loss.backward()
+
         if (idx + 1) % args.grad_accumulation_steps == 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
@@ -232,8 +248,30 @@ def main_worker(gpu, ngpus_per_node, args):
                          D_class=EFFICIENTDET[args.network]['D_class']
                          )
     if(args.resume is not None):
-        model.load_state_dict(checkpoint['state_dict'])
+        tmp = OrderedDict()
+        for k, v in checkpoint['state_dict'].items():
+            k = k.replace("module.", "")
+            tmp[k] = v
+        model.load_state_dict(tmp)
+        del tmp
+
+    model.to("cuda")
+
+    # define loss function (criterion) , optimizer, scheduler
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+    if args.resume is not None and "optimizer" in checkpoint:
+        optimizer.load_state_dict(checkpoint["optimizer"])
     del checkpoint
+    
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, patience=3, verbose=True)
+
+    if args.mixed_training:
+        model, optimizer = amp.initialize(model, optimizer,
+                                          opt_level="O1",
+                                          keep_batchnorm_fp32=None,
+                                          loss_scale=None)
+
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
         # should always set the single device scope, otherwise,
@@ -264,10 +302,6 @@ def main_worker(gpu, ngpus_per_node, args):
         print('Run with DataParallel ....')
         model = torch.nn.DataParallel(model).cuda()
 
-    # define loss function (criterion) , optimizer, scheduler
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=3, verbose=True)
     cudnn.benchmark = True
 
     for epoch in range(args.start_epoch, args.num_epoch):

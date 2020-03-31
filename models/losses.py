@@ -43,6 +43,12 @@ class FocalLoss(nn.Module):
         anchor_ctr_x = anchor[:, 0] + 0.5 * anchor_widths
         anchor_ctr_y = anchor[:, 1] + 0.5 * anchor_heights
 
+        if classifications.dtype == torch.float32:
+            MAX_ONE = 0.9999
+            MIN_ZERO = 1e-4
+        else:
+            MAX_ONE = 0.999
+            MIN_ZERO = 1e-4
         for j in range(batch_size):
 
             classification = classifications[j, :, :]
@@ -56,15 +62,12 @@ class FocalLoss(nn.Module):
 
                 continue
 
-            classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
+            classification = torch.clamp(classification, MIN_ZERO, MAX_ONE)
 
             # num_anchors x num_annotations
             IoU = calc_iou(anchors[0, :, :], bbox_annotation[:, :4])
 
             IoU_max, IoU_argmax = torch.max(IoU, dim=1)  # num_anchors x 1
-
-            #import pdb
-            # pdb.set_trace()
 
             # compute the loss for classification
             targets = torch.ones(classification.shape) * -1

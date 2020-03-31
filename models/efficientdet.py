@@ -64,6 +64,8 @@ class EfficientDet(nn.Module):
         classification = torch.cat([out for out in outs[0]], dim=1)
         regression = torch.cat([out for out in outs[1]], dim=1)
         anchors = self.anchors(inputs)
+        if anchors.dtype != inputs.dtype:
+            anchors = anchors.type_as(inputs)
         if self.is_training:
             return self.criterion(classification, regression, anchors, annotations)
         else:
