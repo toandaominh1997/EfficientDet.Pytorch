@@ -5,6 +5,7 @@ import random
 import shutil
 import time
 import warnings
+import epdb
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -40,6 +41,9 @@ from models.losses import FocalLoss
 from datasets import VOCDetection, CocoDataset, get_augumentation, detection_collate, Resizer, Normalizer, Augmenter, collater
 from utils import EFFICIENTDET, get_state_dict
 from eval import evaluate, evaluate_coco
+
+
+breakpoint = epdb.set_trace
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO'],
@@ -96,7 +100,12 @@ parser.add_argument(
     'N processes per node, which has N GPUs. This is the '
     'fastest way to use PyTorch for either single node or '
     'multi node data parallel training')
-parser.add_argument('--freeze', action='store_true', help='freeze EfficientNet-d{x} backbone')
+parser.add_argument('--eval_epochs', default=5, type=int,
+                    help='after how many training epochs will do evaluation (default 5).')
+parser.add_argument('--freeze_backbone', action='store_true',
+                    help='freeze EfficientNet-d{x} backbone')
+parser.add_argument('--freeze_bn', action='store_true',
+                    help='freeze all batch norm layers')
 parser.add_argument('--mixed_training', action='store_true',
                     help='Use AMP mixed training optimization O1')
 
@@ -109,11 +118,11 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
     start = time.time()
     total_loss = []
     model.train()
-    model.module.is_training = True
-    model.module.freeze_bn()
+
     optimizer.zero_grad()
-    for idx, (images, annotations) in enumerate(train_loader):
-        images = images.cuda().float()
+    for idx, (images, annotations) in tqdm(enumerate(train_loader),
+                                           total=len(train_loader)):
+        images = images.float().cuda()
         annotations = annotations.cuda()
         classification_loss, regression_loss = model([images, annotations])
         classification_loss = classification_loss.mean()
@@ -134,7 +143,7 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
             optimizer.zero_grad()
 
         total_loss.append(loss.item())
-        if(iteration % 300 == 0):
+        if(iteration % 50 == 0):
             print('{} iteration: training ...'.format(iteration))
             ans = {
                 'epoch': epoch,
@@ -257,8 +266,15 @@ def main_worker(gpu, ngpus_per_node, args):
 
     model.to("cuda")
 
+    if args.freeze_backbone:
+        model.freeze_backbone()
+
+    if args.freeze_bn:
+        model.freeze_bn()
+
     # define loss function (criterion) , optimizer, scheduler
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+                            lr=args.lr)
     if args.resume is not None and "optimizer" in checkpoint:
         optimizer.load_state_dict(checkpoint["optimizer"])
     del checkpoint
@@ -307,13 +323,14 @@ def main_worker(gpu, ngpus_per_node, args):
     for epoch in range(args.start_epoch, args.num_epoch):
         train(train_loader, model, scheduler, optimizer, epoch, args)
 
-        if (epoch + 1) % 5 == 0:
+        if (epoch + 1) % args.eval_epochs == 0:
             test(valid_dataset, model, epoch, args)
 
         state = {
             'epoch': epoch,
             'parser': args,
-            'state_dict': get_state_dict(model)
+            'state_dict': get_state_dict(model),
+            'optimizer': optimizer.state_dict()
         }
 
         torch.save(
@@ -332,7 +349,7 @@ def main():
     if args.seed is not None:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
-        cudnn.deterministic = True
+        # cudnn.deterministic = True
         warnings.warn('You have chosen to seed training. '
                       'This will turn on the CUDNN deterministic setting, '
                       'which can slow down your training considerably! '

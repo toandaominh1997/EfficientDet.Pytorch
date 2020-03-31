@@ -44,14 +44,14 @@ class EfficientDet(nn.Module):
         self.clipBoxes = ClipBoxes()
         self.threshold = threshold
         self.iou_threshold = iou_threshold
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2. / n))
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-        self.freeze_bn()
+        """The following code forces all weights to be random, which does not make sense at all!"""
+        # for m in self.modules():
+        #     if isinstance(m, nn.Conv2d):
+        #         n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+        #         m.weight.data.normal_(0, math.sqrt(2. / n))
+        #     elif isinstance(m, nn.BatchNorm2d):
+        #         m.weight.data.fill_(1)
+        #         m.bias.data.zero_()
         self.criterion = FocalLoss()
 
     def forward(self, inputs):
@@ -86,6 +86,14 @@ class EfficientDet(nn.Module):
             nms_scores, nms_class = classification[0, anchors_nms_idx, :].max(
                 dim=1)
             return [nms_scores, nms_class, transformed_anchors[0, anchors_nms_idx, :]]
+
+    def freeze_backbone(self):
+        """Freeze backbone weights and bn layers."""
+        for layer in self.backbone.modules():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.eval()
+        for param in self.backbone.parameters():
+            param.requires_grad = False
 
     def freeze_bn(self):
         '''Freeze BatchNorm layers.'''
