@@ -3,6 +3,7 @@ import argparse
 import os
 import random
 import shutil
+from collections import OrderedDict
 import time
 import warnings
 import epdb
@@ -17,6 +18,8 @@ import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
+
+import pytorch_warmup as warmup
 
 import os
 import sys
@@ -89,7 +92,7 @@ parser.add_argument('--dist-url', default='env://', type=str,
                     help='url used to set up distributed training')
 parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
-parser.add_argument('--seed', default=24, type=int,
+parser.add_argument('--seed', default=None, type=int,
                     help='seed for initializing training. ')
 parser.add_argument('--gpu', default=None, type=int,
                     help='GPU id to use.')
@@ -112,13 +115,13 @@ parser.add_argument('--mixed_training', action='store_true',
 iteration = 1
 
 
-def train(train_loader, model, scheduler, optimizer, epoch, args):
+def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, args):
     global iteration
     print("{} epoch: \t start training....".format(epoch))
     start = time.time()
     total_loss = []
     model.train()
-
+    model.module.is_training = True
     optimizer.zero_grad()
     for idx, (images, annotations) in tqdm(enumerate(train_loader),
                                            total=len(train_loader)):
@@ -127,10 +130,12 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
         classification_loss, regression_loss = model([images, annotations])
         classification_loss = classification_loss.mean()
         regression_loss = regression_loss.mean()
+
         loss = classification_loss + regression_loss
         if bool(loss == 0):
             print('loss equal zero(0)')
             continue
+
         if args.mixed_training:
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
@@ -141,9 +146,12 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
             optimizer.zero_grad()
+            # scheduler.step()
+            # if warmup_scheduler:
+            #     warmup_scheduler.dampen()
 
         total_loss.append(loss.item())
-        if(iteration % 50 == 0):
+        if(iteration % 10 == 0):
             print('{} iteration: training ...'.format(iteration))
             ans = {
                 'epoch': epoch,
@@ -155,7 +163,8 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
             for key, value in ans.items():
                 print('    {:15s}: {}'.format(str(key), value))
         iteration += 1
-    scheduler.step(np.mean(total_loss))
+    scheduler.step(np.mean(total_loss))  # used for ReduceLROnPlateau
+
     result = {
         'time': time.time() - start,
         'loss': np.mean(total_loss)
@@ -277,16 +286,27 @@ def main_worker(gpu, ngpus_per_node, args):
                             lr=args.lr)
     if args.resume is not None and "optimizer" in checkpoint:
         optimizer.load_state_dict(checkpoint["optimizer"])
-    del checkpoint
-    
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, patience=3, verbose=True)
 
+    num_steps = len(train_loader) * args.num_epoch
+
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+    #     optimizer, patience=3, verbose=True)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                     T_max=num_steps)
+    if args.resume is not None and "scheduler" in checkpoint:
+        scheduler.load_state_dict(checkpoint["scheduler"])
     if args.mixed_training:
         model, optimizer = amp.initialize(model, optimizer,
                                           opt_level="O1",
                                           keep_batchnorm_fp32=None,
-                                          loss_scale=None)
+                                          loss_scale=128)
+
+    # warmup_scheduler = warmup.UntunedLinearWarmup(optimizer)
+    warmup_scheduler = None
+
+    if args.resume is not None and "warmup_scheduler" in checkpoint:
+        scheduler.load_state_dict(checkpoint["warmup_scheduler"])
+    del checkpoint
 
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
@@ -321,10 +341,8 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.benchmark = True
 
     for epoch in range(args.start_epoch, args.num_epoch):
-        train(train_loader, model, scheduler, optimizer, epoch, args)
-
-        if (epoch + 1) % args.eval_epochs == 0:
-            test(valid_dataset, model, epoch, args)
+        train(train_loader, model, scheduler, warmup_scheduler,
+              optimizer, epoch, args)
 
         state = {
             'epoch': epoch,
@@ -341,6 +359,9 @@ def main_worker(gpu, ngpus_per_node, args):
                 args.network,
                 "checkpoint_{}.pth".format(epoch)))
 
+        if (epoch + 1) % args.eval_epochs == 0:
+            test(valid_dataset, model, epoch, args)
+
 
 def main():
     args = parser.parse_args()
@@ -349,7 +370,7 @@ def main():
     if args.seed is not None:
         random.seed(args.seed)
         torch.manual_seed(args.seed)
-        # cudnn.deterministic = True
+        cudnn.deterministic = True
         warnings.warn('You have chosen to seed training. '
                       'This will turn on the CUDNN deterministic setting, '
                       'which can slow down your training considerably! '

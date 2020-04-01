@@ -54,6 +54,14 @@ class EfficientDet(nn.Module):
         #         m.bias.data.zero_()
         self.criterion = FocalLoss()
 
+    def extract_feat(self, img):
+        """
+            Directly extract features from the backbone+neck
+        """
+        x = self.backbone(img)
+        x = self.neck(x[-5:])
+        return x
+
     def forward(self, inputs):
         if self.is_training:
             inputs, annotations = inputs
@@ -100,11 +108,3 @@ class EfficientDet(nn.Module):
         for layer in self.modules():
             if isinstance(layer, nn.BatchNorm2d):
                 layer.eval()
-
-    def extract_feat(self, img):
-        """
-            Directly extract features from the backbone+neck
-        """
-        x = self.backbone(img)
-        x = self.neck(x[-5:])
-        return x
