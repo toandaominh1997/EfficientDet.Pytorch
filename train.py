@@ -45,6 +45,7 @@ from datasets import VOCDetection, CocoDataset, get_augumentation, detection_col
 from utils import EFFICIENTDET, get_state_dict
 from eval import evaluate, evaluate_coco
 
+from loader import PrefetchLoader
 
 breakpoint = epdb.set_trace
 
@@ -123,8 +124,11 @@ def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, ar
     model.train()
     model.module.is_training = True
     optimizer.zero_grad()
-    for idx, (images, annotations) in tqdm(enumerate(train_loader),
-                                           total=len(train_loader)):
+
+    prefetcher = PrefetchLoader(train_loader)
+
+    for idx, (images, annotations) in tqdm(enumerate(prefetcher),
+                                           total=len(prefetcher)):
         images = images.float().cuda()
         annotations = annotations.cuda()
         classification_loss, regression_loss = model([images, annotations])
