@@ -46,8 +46,13 @@ from utils import EFFICIENTDET, get_state_dict
 from eval import evaluate, evaluate_coco
 
 from loader import PrefetchLoader
+from torch.utils.tensorboard import SummaryWriter
+
 
 breakpoint = epdb.set_trace
+
+writer = SummaryWriter()
+
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO'],

@@ -148,4 +148,5 @@ class Normalizer(object):
     def __call__(self, sample):
         image, annots = sample['img'], sample['annot']
 
-        return {'img': ((image.astype(np.float32) - self.mean) / self.std), 'annot': annots}
+        # 1/255. = 0.00392156862745098
+        return {'img': ((image.astype(np.float32) *0.00392156862745098 - self.mean) / self.std), 'annot': annots}
