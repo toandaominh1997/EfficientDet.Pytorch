@@ -162,7 +162,7 @@ class BiFPNModule(nn.Module):
                         inplace=False)
                 )
                 self.bifpn_convs.append(fpn_conv)
-        self.init_weights()
+        # self.init_weights() # new code
 
     # default init_weights for conv(msra) and norm in ConvModule
     def init_weights(self):

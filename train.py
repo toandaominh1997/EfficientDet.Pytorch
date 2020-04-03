@@ -123,6 +123,7 @@ def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, ar
     total_loss = []
     model.train()
     model.module.is_training = True
+    model.module.freeze_bn()
     optimizer.zero_grad()
 
     prefetcher = PrefetchLoader(train_loader)
@@ -155,7 +156,7 @@ def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, ar
             #     warmup_scheduler.dampen()
 
         total_loss.append(loss.item())
-        if(iteration % 10 == 0):
+        if(iteration % 50 == 0):
             print('{} iteration: training ...'.format(iteration))
             ans = {
                 'epoch': epoch,

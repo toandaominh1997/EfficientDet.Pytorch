@@ -44,14 +44,20 @@ class EfficientDet(nn.Module):
         self.clipBoxes = ClipBoxes()
         self.threshold = threshold
         self.iou_threshold = iou_threshold
+
+        # ============== original code starts ===============
         """The following code forces all weights to be random, which does not make sense at all!"""
-        # for m in self.modules():
-        #     if isinstance(m, nn.Conv2d):
-        #         n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-        #         m.weight.data.normal_(0, math.sqrt(2. / n))
-        #     elif isinstance(m, nn.BatchNorm2d):
-        #         m.weight.data.fill_(1)
-        #         m.bias.data.zero_()
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+        self.freeze_bn()
+        # ============== original code ends ===============
+
         self.criterion = FocalLoss()
 
     def extract_feat(self, img):
@@ -72,8 +78,8 @@ class EfficientDet(nn.Module):
         classification = torch.cat([out for out in outs[0]], dim=1)
         regression = torch.cat([out for out in outs[1]], dim=1)
         anchors = self.anchors(inputs)
-        if anchors.dtype != inputs.dtype:
-            anchors = anchors.type_as(inputs)
+        # if anchors.dtype != inputs.dtype:  # used for mixed precision training
+        #     anchors = anchors.type_as(inputs)
         if self.is_training:
             return self.criterion(classification, regression, anchors, annotations)
         else:
