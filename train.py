@@ -37,7 +37,7 @@ try:
     from apex import amp, optimizers
     from apex.multi_tensor_apply import multi_tensor_applier
 except ImportError:
-    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
+    print("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
 from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
@@ -140,7 +140,6 @@ def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, ar
         classification_loss, regression_loss = model([images, annotations])
         classification_loss = classification_loss.mean()
         regression_loss = regression_loss.mean()
-
         loss = classification_loss + regression_loss
         if bool(loss == 0):
             print('loss equal zero(0)')
@@ -161,8 +160,8 @@ def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, ar
             #     warmup_scheduler.dampen()
 
         total_loss.append(loss.item())
-        if(iteration % 50 == 0):
-            print('{} iteration: training ...'.format(iteration))
+        if (iteration % 100 == 0):
+            # print('{} iteration: training ...'.format(iteration))
             ans = {
                 'epoch': epoch,
                 'iteration': iteration,
@@ -172,6 +171,8 @@ def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, ar
             }
             for key, value in ans.items():
                 print('    {:15s}: {}'.format(str(key), value))
+                if key != "epoch":
+                    writer.add_scalar(key, value, iteration)
         iteration += 1
     scheduler.step(np.mean(total_loss))  # used for ReduceLROnPlateau
 
@@ -216,14 +217,14 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # Training dataset
     train_dataset = []
-    if(args.dataset == 'VOC'):
+    if (args.dataset == 'VOC'):
         train_dataset = VOCDetection(root=args.dataset_root,
                                      transform=transforms.Compose(
                                          [Normalizer(), Augmenter(), Resizer()]))
         valid_dataset = VOCDetection(root=args.dataset_root, image_sets=[(
             '2007', 'test')], transform=transforms.Compose([Normalizer(), Resizer()]))
         args.num_class = train_dataset.num_classes()
-    elif(args.dataset == 'COCO'):
+    elif (args.dataset == 'COCO'):
         train_dataset = CocoDataset(
             root_dir=args.dataset_root,
             set_name='train2017',

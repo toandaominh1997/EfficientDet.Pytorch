@@ -86,20 +86,26 @@ class EfficientDet(nn.Module):
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, inputs)
             scores = torch.max(classification, dim=2, keepdim=True)[0]
-            scores_over_thresh = (scores > self.threshold)[0, :, 0]
-
-            if scores_over_thresh.sum() == 0:
-                print('No boxes to NMS')
-                # no boxes to NMS, just return
-                return [torch.zeros(0), torch.zeros(0), torch.zeros(0, 4)]
-            classification = classification[:, scores_over_thresh, :]
-            transformed_anchors = transformed_anchors[:, scores_over_thresh, :]
-            scores = scores[:, scores_over_thresh, :]
-            anchors_nms_idx = nms(
-                transformed_anchors[0, :, :], scores[0, :, 0], iou_threshold=self.iou_threshold)
-            nms_scores, nms_class = classification[0, anchors_nms_idx, :].max(
-                dim=1)
-            return [nms_scores, nms_class, transformed_anchors[0, anchors_nms_idx, :]]
+            nms_scores = []
+            nms_class = []
+            anchors = []
+            for idx, score in enumerate(scores):
+                scores_over_thresh = (score > self.threshold)[:, 0]
+                if scores_over_thresh.sum() == 0:
+                    print('No boxes to NMS')
+                    # no boxes to NMS, just return
+                    # return [torch.zeros(0), torch.zeros(0), torch.zeros(0, 4)]
+                    continue
+                cls_tmp = classification[idx, scores_over_thresh, :]
+                trf_anchors = transformed_anchors[idx, scores_over_thresh, :]
+                scores_tmp = scores[idx, scores_over_thresh, :]
+                anchors_nms_idx = nms(trf_anchors, scores_tmp[:, 0],
+                                      iou_threshold=self.iou_threshold)
+                nms_scores_tmp, nms_class_tmp = cls_tmp[anchors_nms_idx, :].max(dim=1)
+                nms_scores.append(nms_scores_tmp)
+                nms_class.append(nms_class_tmp)
+                anchors.append(trf_anchors[anchors_nms_idx, :])
+            return [nms_scores, nms_class, anchors]
 
     def freeze_backbone(self):
         """Freeze backbone weights and bn layers."""

@@ -54,16 +54,20 @@ def detection_collate(batch):
     imgs = [s['image'] for s in batch]
     annots = [s['bboxes'] for s in batch]
     labels = [s['category_id'] for s in batch]
+    scales = [s['scale'] for s in batch]
 
     max_num_annots = max(len(annot) for annot in annots)
     annot_padded = np.ones((len(annots), max_num_annots, 5))*-1
 
     if max_num_annots > 0:
         for idx, (annot, lab) in enumerate(zip(annots, labels)):
+            # pylint: disable=C1801
             if len(annot) > 0:
                 annot_padded[idx, :len(annot), :4] = annot
                 annot_padded[idx, :len(annot), 4] = lab
-    return (torch.stack(imgs, 0), torch.FloatTensor(annot_padded))
+    return (torch.stack(imgs, 0),
+            torch.FloatTensor(annot_padded),
+            torch.FloatTensor(scales))
 
 
 def collater(data):
@@ -89,7 +93,8 @@ def collater(data):
 
     imgs = imgs.permute(0, 3, 1, 2)
 
-    return (imgs, torch.FloatTensor(annot_padded))
+    return (imgs, torch.FloatTensor(annot_padded),
+            torch.FloatTensor(scales))
 
 
 class Resizer(object):
@@ -113,7 +118,9 @@ class Resizer(object):
         new_image[0:resized_height, 0:resized_width] = image
         annots[:, :4] *= scale
 
-        return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': scale}
+        return {'img': torch.from_numpy(new_image),
+                'annot': torch.from_numpy(annots),
+                'scale': scale}
 
 
 class Augmenter(object):
