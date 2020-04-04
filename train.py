@@ -117,6 +117,8 @@ parser.add_argument('--freeze_bn', action='store_true',
                     help='freeze all batch norm layers')
 parser.add_argument('--mixed_training', action='store_true',
                     help='Use AMP mixed training optimization O1')
+parser.add_argument('--eval', action='store_true',
+                    help='Perform evaluation')
 
 iteration = 1
 
@@ -184,16 +186,16 @@ def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, ar
         print('    {:15s}: {}'.format(str(key), value))
 
 
-def test(dataset, model, epoch, args):
+def test(dataloader, model, epoch, args):
     print("{} epoch: \t start validation....".format(epoch))
     # model = model.module
     model.eval()
     # model.is_training = False
     with torch.no_grad():
         if(args.dataset == 'VOC'):
-            evaluate(dataset, model)
+            evaluate(dataloader, model)
         else:
-            evaluate_coco(dataset, model)
+            evaluate_coco(dataloader, model)
 
 
 def main_worker(gpu, ngpus_per_node, args):
@@ -249,7 +251,7 @@ def main_worker(gpu, ngpus_per_node, args):
                               collate_fn=collater,
                               pin_memory=True)
     valid_loader = DataLoader(valid_dataset,
-                              batch_size=1,
+                              batch_size=args.batch_size,
                               num_workers=args.workers,
                               shuffle=False,
                               collate_fn=collater,
@@ -350,27 +352,30 @@ def main_worker(gpu, ngpus_per_node, args):
 
     cudnn.benchmark = True
 
-    for epoch in range(args.start_epoch, args.num_epoch):
-        train(train_loader, model, scheduler, warmup_scheduler,
-              optimizer, epoch, args)
+    if args.eval:
+        test(valid_loader, model, epoch=0, args=args)
+    else:
+        for epoch in range(args.start_epoch, args.num_epoch):
+                train(train_loader, model, scheduler, warmup_scheduler,
+                      optimizer, epoch, args)
 
-        state = {
-            'epoch': epoch,
-            'parser': args,
-            'state_dict': get_state_dict(model),
-            'optimizer': optimizer.state_dict()
-        }
+                state = {
+                    'epoch': epoch,
+                    'parser': args,
+                    'state_dict': get_state_dict(model),
+                    'optimizer': optimizer.state_dict()
+                }
 
-        torch.save(
-            state,
-            os.path.join(
-                args.save_folder,
-                args.dataset,
-                args.network,
-                "checkpoint_{}.pth".format(epoch)))
+                torch.save(
+                    state,
+                    os.path.join(
+                        args.save_folder,
+                        args.dataset,
+                        args.network,
+                        "checkpoint_{}.pth".format(epoch)))
 
-        if (epoch + 1) % args.eval_epochs == 0:
-            test(valid_dataset, model, epoch, args)
+                if (epoch + 1) % args.eval_epochs == 0:
+                    test(valid_loader, model, epoch, args)
 
 
 def main():
