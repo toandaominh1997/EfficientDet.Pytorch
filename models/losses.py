@@ -49,6 +49,7 @@ class FocalLoss(nn.Module):
         else:
             MAX_ONE = 0.999
             MIN_ZERO = 1e-4
+        not_found = 0
         for j in range(batch_size):
 
             classification = classifications[j, :, :]
@@ -78,6 +79,8 @@ class FocalLoss(nn.Module):
             positive_indices = torch.ge(IoU_max, 0.5)
 
             num_positive_anchors = positive_indices.sum()
+            if num_positive_anchors == 0:
+                not_found += 1
 
             assigned_annotations = bbox_annotation[IoU_argmax, :]
 
@@ -150,5 +153,6 @@ class FocalLoss(nn.Module):
                 regression_losses.append(regression_loss.mean())
             else:
                 regression_losses.append(torch.tensor(0).float().cuda())
-
+        if not_found == batch_size:
+            print("Not positive sample is found in the batch")
         return torch.stack(classification_losses).mean(dim=0, keepdim=True), torch.stack(regression_losses).mean(dim=0, keepdim=True)

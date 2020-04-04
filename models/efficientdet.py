@@ -31,7 +31,7 @@ class EfficientDet(nn.Module):
                  iou_threshold=0.5):
         super(EfficientDet, self).__init__()
         self.backbone = EfficientNet.from_pretrained(MODEL_MAP[network])
-        self.is_training = is_training
+        # self.is_training = is_training
         self.neck = BIFPN(in_channels=self.backbone.get_list_features()[-5:],
                           out_channels=W_bifpn,
                           stack=D_bifpn,
@@ -69,7 +69,7 @@ class EfficientDet(nn.Module):
         return x
 
     def forward(self, inputs):
-        if self.is_training:
+        if self.training:
             inputs, annotations = inputs
         else:
             inputs = inputs
@@ -80,7 +80,7 @@ class EfficientDet(nn.Module):
         anchors = self.anchors(inputs)
         # if anchors.dtype != inputs.dtype:  # used for mixed precision training
         #     anchors = anchors.type_as(inputs)
-        if self.is_training:
+        if self.training:
             return self.criterion(classification, regression, anchors, annotations)
         else:
             transformed_anchors = self.regressBoxes(anchors, regression)

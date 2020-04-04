@@ -109,7 +109,7 @@ class Resizer(object):
 
         image = cv2.resize(image, (resized_width, resized_height))
 
-        new_image = np.zeros((common_size, common_size, 3))
+        new_image = np.zeros((common_size, common_size, 3), np.float32)
         new_image[0:resized_height, 0:resized_width] = image
         annots[:, :4] *= scale
 

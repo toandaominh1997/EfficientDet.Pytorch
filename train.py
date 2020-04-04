@@ -127,8 +127,8 @@ def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, ar
     start = time.time()
     total_loss = []
     model.train()
-    model.module.is_training = True
-    model.module.freeze_bn()
+    # model.module.is_training = True
+    # model.module.freeze_bn()
     optimizer.zero_grad()
 
     prefetcher = PrefetchLoader(train_loader)
@@ -185,9 +185,9 @@ def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, ar
 
 def test(dataset, model, epoch, args):
     print("{} epoch: \t start validation....".format(epoch))
-    model = model.module
+    # model = model.module
     model.eval()
-    model.is_training = False
+    # model.is_training = False
     with torch.no_grad():
         if(args.dataset == 'VOC'):
             evaluate(dataset, model)
@@ -217,8 +217,9 @@ def main_worker(gpu, ngpus_per_node, args):
     # Training dataset
     train_dataset = []
     if(args.dataset == 'VOC'):
-        train_dataset = VOCDetection(root=args.dataset_root, transform=transforms.Compose(
-            [Normalizer(), Augmenter(), Resizer()]))
+        train_dataset = VOCDetection(root=args.dataset_root,
+                                     transform=transforms.Compose(
+                                         [Normalizer(), Augmenter(), Resizer()]))
         valid_dataset = VOCDetection(root=args.dataset_root, image_sets=[(
             '2007', 'test')], transform=transforms.Compose([Normalizer(), Resizer()]))
         args.num_class = train_dataset.num_classes()
@@ -283,40 +284,11 @@ def main_worker(gpu, ngpus_per_node, args):
         model.load_state_dict(tmp)
         del tmp
 
-    model.to("cuda")
-
     if args.freeze_backbone:
         model.freeze_backbone()
 
     if args.freeze_bn:
         model.freeze_bn()
-
-    # define loss function (criterion) , optimizer, scheduler
-    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
-                            lr=args.lr)
-    if args.resume is not None and "optimizer" in checkpoint:
-        optimizer.load_state_dict(checkpoint["optimizer"])
-
-    num_steps = len(train_loader) * args.num_epoch
-
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-    #     optimizer, patience=3, verbose=True)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                     T_max=num_steps)
-    if args.resume is not None and "scheduler" in checkpoint:
-        scheduler.load_state_dict(checkpoint["scheduler"])
-    if args.mixed_training:
-        model, optimizer = amp.initialize(model, optimizer,
-                                          opt_level="O1",
-                                          keep_batchnorm_fp32=None,
-                                          loss_scale=128)
-
-    # warmup_scheduler = warmup.UntunedLinearWarmup(optimizer)
-    warmup_scheduler = None
-
-    if args.resume is not None and "warmup_scheduler" in checkpoint:
-        scheduler.load_state_dict(checkpoint["warmup_scheduler"])
-    del checkpoint
 
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
@@ -344,9 +316,36 @@ def main_worker(gpu, ngpus_per_node, args):
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
     else:
-        model = model.cuda()
         print('Run with DataParallel ....')
-        model = torch.nn.DataParallel(model).cuda()
+        model = torch.nn.DataParallel(model)
+        model = model.cuda()
+
+    # define loss function (criterion) , optimizer, scheduler
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+                            lr=args.lr)
+    if args.resume is not None and "optimizer" in checkpoint:
+        optimizer.load_state_dict(checkpoint["optimizer"])
+
+    num_steps = len(train_loader) * args.num_epoch
+
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, patience=3, verbose=True)
+    # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,
+    #                                                 T_max=num_steps)
+    if args.resume is not None and "scheduler" in checkpoint:
+        scheduler.load_state_dict(checkpoint["scheduler"])
+    if args.mixed_training:
+        model, optimizer = amp.initialize(model, optimizer,
+                                          opt_level="O1",
+                                          keep_batchnorm_fp32=None,
+                                          loss_scale=128)
+
+    # warmup_scheduler = warmup.UntunedLinearWarmup(optimizer)
+    warmup_scheduler = None
+
+    if args.resume is not None and "warmup_scheduler" in checkpoint:
+        scheduler.load_state_dict(checkpoint["warmup_scheduler"])
+    del checkpoint
 
     cudnn.benchmark = True
 
