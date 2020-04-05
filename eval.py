@@ -278,7 +278,7 @@ def evaluate_coco(dataloader, model, threshold=0.05):
             images = data[0]
             # run network
             scores_batch, labels_batch, boxes_batch = model(images)
-            
+
             scores_batch = scores_batch.reshape(images.shape[0], -1)
             labels_batch = labels_batch.reshape(images.shape[0], -1)
             boxes_batch = boxes_batch.reshape(images.shape[0], -1, 4)

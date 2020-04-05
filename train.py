@@ -356,27 +356,26 @@ def main_worker(gpu, ngpus_per_node, args):
         test(valid_loader, model, epoch=0, args=args)
     else:
         for epoch in range(args.start_epoch, args.num_epoch):
-                train(train_loader, model, scheduler, warmup_scheduler,
-                      optimizer, epoch, args)
+            train(train_loader, model, scheduler, warmup_scheduler,
+                  optimizer, epoch, args)
 
-                state = {
-                    'epoch': epoch,
-                    'parser': args,
-                    'state_dict': get_state_dict(model),
-                    'optimizer': optimizer.state_dict()
-                }
+            state = {
+                'epoch': epoch,
+                'parser': args,
+                'state_dict': get_state_dict(model),
+                'optimizer': optimizer.state_dict()
+            }
 
-                torch.save(
-                    state,
-                    os.path.join(
-                        args.save_folder,
-                        args.dataset,
-                        args.network,
-                        "checkpoint_{}.pth".format(epoch)))
+            torch.save(
+                state,
+                os.path.join(
+                    args.save_folder,
+                    args.dataset,
+                    args.network,
+                    "checkpoint_{}.pth".format(epoch)))
 
-                if (epoch + 1) % args.eval_epochs == 0:
-                    torch.cuda.empty_cache()
-                    test(valid_loader, model, epoch, args)
+            if (epoch + 1) % args.eval_epochs == 0:
+                test(valid_dataset, model, epoch, args)
 
 
 def main():
