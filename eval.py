@@ -94,10 +94,13 @@ def _get_detections(dataloader, retinanet,
     retinanet.eval()
     index = 0
     with torch.no_grad():
-        for data in tqdm(dataloader, total=len(dataloader)):
-            images = data[0]
+        for idx, data in tqdm(enumerate(dataloader), total=len(dataloader)):
+            images = data[0].cuda()
             scores_batch, labels_batch, boxes_batch = retinanet(images)
 
+            scores_batch = scores_batch.reshape(images.shape[0], -1)
+            labels_batch = labels_batch.reshape(images.shape[0], -1)
+            boxes_batch = boxes_batch.reshape(images.shape[0], -1, 4)
             for scores, labels, boxes, scale in zip(scores_batch,
                                                     labels_batch,
                                                     boxes_batch, data[2]):
@@ -270,11 +273,16 @@ def evaluate_coco(dataloader, model, threshold=0.05):
         results = []
         image_ids = []
         index = 0
+
         for data in tqdm(dataloader, total=len(dataloader)):
             images = data[0]
             # run network
             scores_batch, labels_batch, boxes_batch = model(images)
-  
+            
+            scores_batch = scores_batch.reshape(images.shape[0], -1)
+            labels_batch = labels_batch.reshape(images.shape[0], -1)
+            boxes_batch = boxes_batch.reshape(images.shape[0], -1, 4)
+
             for scores, labels, boxes, scale in zip(scores_batch,
                                                     labels_batch,
                                                     boxes_batch, data[2]):

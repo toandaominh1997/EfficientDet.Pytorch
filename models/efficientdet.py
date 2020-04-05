@@ -83,6 +83,7 @@ class EfficientDet(nn.Module):
         if self.training:
             return self.criterion(classification, regression, anchors, annotations)
         else:
+            max_per_image = 256
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, inputs)
             scores = torch.max(classification, dim=2, keepdim=True)[0]
@@ -102,10 +103,26 @@ class EfficientDet(nn.Module):
                 anchors_nms_idx = nms(trf_anchors, scores_tmp[:, 0],
                                       iou_threshold=self.iou_threshold)
                 nms_scores_tmp, nms_class_tmp = cls_tmp[anchors_nms_idx, :].max(dim=1)
+                trf_anchors = trf_anchors[anchors_nms_idx, :]
+
+                if not torch.all(-nms_scores_tmp[:-1] <= -nms_scores_tmp[1:]):
+                    raise ValueError("Please make nms score sorted")
+                if nms_scores_tmp.shape[0] > max_per_image:
+                    nms_scores_tmp = nms_scores_tmp[:max_per_image]
+                    nms_class_tmp = nms_class_tmp[:max_per_image]
+                    trf_anchors = trf_anchors[:max_per_image]
+                else:
+                    K = max_per_image - nms_scores_tmp.shape[0]
+                    nms_scores_tmp = torch.cat((nms_scores_tmp,
+                                                -torch.ones(K,).type_as(nms_scores_tmp)))
+                    nms_class_tmp = torch.cat((nms_class_tmp,
+                                               -torch.ones(K,).type_as(nms_class_tmp)))
+                    trf_anchors = torch.cat((trf_anchors,
+                                             -torch.ones(K, 4).type_as(trf_anchors)))
                 nms_scores.append(nms_scores_tmp)
                 nms_class.append(nms_class_tmp)
-                anchors.append(trf_anchors[anchors_nms_idx, :])
-            return [nms_scores, nms_class, anchors]
+                anchors.append(trf_anchors)
+            return torch.cat(nms_scores), torch.cat(nms_class), torch.cat(anchors)
 
     def freeze_backbone(self):
         """Freeze backbone weights and bn layers."""

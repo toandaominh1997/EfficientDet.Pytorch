@@ -375,6 +375,7 @@ def main_worker(gpu, ngpus_per_node, args):
                         "checkpoint_{}.pth".format(epoch)))
 
                 if (epoch + 1) % args.eval_epochs == 0:
+                    torch.cuda.empty_cache()
                     test(valid_loader, model, epoch, args)
 
 
