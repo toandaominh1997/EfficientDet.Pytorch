@@ -88,7 +88,7 @@ parser.add_argument('--save_folder', default='./saved/weights/', type=str,
                     help='Directory for saving checkpoint models')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
+parser.add_argument('--start_epoch', default=-1, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('--world-size', default=1, type=int,
                     help='number of nodes for distributed training')
@@ -382,7 +382,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     "checkpoint_{}.pth".format(epoch)))
 
             if (epoch + 1) % args.eval_epochs == 0:
-                test(valid_dataset, model, epoch, args)
+                test(valid_loader, model, epoch, args)
 
 
 def main():
