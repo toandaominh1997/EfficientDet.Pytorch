@@ -270,8 +270,11 @@ def main_worker(gpu, ngpus_per_node, args):
         params = checkpoint['parser']
         args.num_class = params.num_class
         args.network = params.network
-        args.start_epoch = checkpoint['epoch'] + 1
+        if args.start_epoch == -1:
+            args.start_epoch = checkpoint['epoch'] + 1
         del params
+    if args.start_epoch == -1:
+        args.start_epoch = 0
 
     model = EfficientDet(num_classes=args.num_class,
                          network=args.network,
@@ -326,8 +329,12 @@ def main_worker(gpu, ngpus_per_node, args):
     # define loss function (criterion) , optimizer, scheduler
     optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
                             lr=args.lr)
+
     if args.resume is not None and "optimizer" in checkpoint:
-        optimizer.load_state_dict(checkpoint["optimizer"])
+        try:
+            optimizer.load_state_dict(checkpoint["optimizer"])
+        except Exception as ex:
+            print("Optimizer load_state_dict error: {}".format(ex))
 
     num_steps = len(train_loader) * args.num_epoch
 
