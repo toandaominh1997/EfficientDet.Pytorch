@@ -8,6 +8,8 @@ if sys.version_info[0] == 2:
     import xml.etree.cElementTree as ET
 else:
     import xml.etree.ElementTree as ET
+import albumentations as albu
+
 
 VOC_CLASSES = (  # always index 0
     'aeroplane', 'bicycle', 'bird', 'boat',
@@ -106,15 +108,26 @@ class VOCDetection(data.Dataset):
         target = ET.parse(self._annopath % img_id).getroot()
         img = cv2.imread(self._imgpath % img_id)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = img.astype(np.float32)/255.
         height, width, channels = img.shape
 
         if self.target_transform is not None:
             target = self.target_transform(target, width, height)
         target = np.array(target)
         sample = {'img': img, 'annot': target}
-        if self.transform is not None:
-            sample = self.transform(sample)
+        if isinstance(self.transform, albu.core.composition.Compose):
+            result = self.transform(image=img, bboxes=target[:, :4], category_id=target[:, -1])
+            bboxes = np.array(result["bboxes"])
+            cls = np.atleast_2d(result["category_id"]).T
+            if bboxes.size == 0:  # after data augmentation we loose all bboxes
+                return None
+            target = np.hstack((bboxes, cls))
+            sample = {"img": result["image"].transpose(1, 0).transpose(2, 1),
+                      "annot": torch.from_numpy(target),
+                      "scale": -1}  # fake scale
+        else:
+            img = img.astype(np.float32)/255.
+            if self.transform is not None:
+                sample = self.transform(sample)
         return sample
 
         bbox = target[:, :4]

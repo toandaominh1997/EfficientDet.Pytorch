@@ -1,6 +1,7 @@
 from functools import partial
 
 import numpy as np
+import torch
 import torch.nn as nn
 
 from .module import ConvModule, bias_init_with_prob, normal_init

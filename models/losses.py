@@ -43,6 +43,13 @@ class FocalLoss(nn.Module):
         anchor_ctr_x = anchor[:, 0] + 0.5 * anchor_widths
         anchor_ctr_y = anchor[:, 1] + 0.5 * anchor_heights
 
+        if classifications.dtype == torch.float32:
+            MAX_ONE = 0.9999
+            MIN_ZERO = 1e-4
+        else:
+            MAX_ONE = 0.999
+            MIN_ZERO = 1e-4
+        not_found = 0
         for j in range(batch_size):
 
             classification = classifications[j, :, :]
@@ -50,22 +57,18 @@ class FocalLoss(nn.Module):
 
             bbox_annotation = annotations[j, :, :]
             bbox_annotation = bbox_annotation[bbox_annotation[:, 4] != -1]
-
             if bbox_annotation.shape[0] == 0:
                 regression_losses.append(torch.tensor(0).float().cuda())
                 classification_losses.append(torch.tensor(0).float().cuda())
 
                 continue
 
-            classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
+            classification = torch.clamp(classification, MIN_ZERO, MAX_ONE)
 
             # num_anchors x num_annotations
             IoU = calc_iou(anchors[0, :, :], bbox_annotation[:, :4])
 
             IoU_max, IoU_argmax = torch.max(IoU, dim=1)  # num_anchors x 1
-
-            #import pdb
-            # pdb.set_trace()
 
             # compute the loss for classification
             targets = torch.ones(classification.shape) * -1
@@ -76,6 +79,8 @@ class FocalLoss(nn.Module):
             positive_indices = torch.ge(IoU_max, 0.5)
 
             num_positive_anchors = positive_indices.sum()
+            if num_positive_anchors == 0:
+                not_found += 1
 
             assigned_annotations = bbox_annotation[IoU_argmax, :]
 
@@ -148,5 +153,6 @@ class FocalLoss(nn.Module):
                 regression_losses.append(regression_loss.mean())
             else:
                 regression_losses.append(torch.tensor(0).float().cuda())
-
+        if not_found == batch_size:
+            print("Not positive sample is found in the batch")
         return torch.stack(classification_losses).mean(dim=0, keepdim=True), torch.stack(regression_losses).mean(dim=0, keepdim=True)

@@ -16,8 +16,6 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
             albu.augmentations.transforms.RandomResizedCrop(
                 height=height,
                 width=width, p=0.3),
-            albu.augmentations.transforms.Flip(),
-            albu.augmentations.transforms.Transpose(),
             albu.OneOf([
                 albu.RandomBrightnessContrast(brightness_limit=0.5,
                                               contrast_limit=0.4),
@@ -33,7 +31,6 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
             ]),
             albu.CLAHE(p=0.8),
             albu.HorizontalFlip(p=0.5),
-            albu.VerticalFlip(p=0.5),
         ])
     if(phase == 'test' or phase == 'valid'):
         list_transforms.extend([
@@ -46,32 +43,43 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
     ])
     if(phase == 'test'):
         return albu.Compose(list_transforms)
-    return albu.Compose(list_transforms, bbox_params=albu.BboxParams(format='pascal_voc', min_area=min_area,
-                                                                     min_visibility=min_visibility, label_fields=['category_id']))
+    return albu.Compose(list_transforms,
+                        bbox_params=albu.BboxParams(format='pascal_voc',
+                                                    min_area=min_area,
+                                                    min_visibility=min_visibility,
+                                                    label_fields=['category_id']))
 
 
 def detection_collate(batch):
     imgs = [s['image'] for s in batch]
     annots = [s['bboxes'] for s in batch]
     labels = [s['category_id'] for s in batch]
+    scales = [s['scale'] for s in batch]
 
     max_num_annots = max(len(annot) for annot in annots)
     annot_padded = np.ones((len(annots), max_num_annots, 5))*-1
 
     if max_num_annots > 0:
         for idx, (annot, lab) in enumerate(zip(annots, labels)):
+            # pylint: disable=C1801
             if len(annot) > 0:
                 annot_padded[idx, :len(annot), :4] = annot
                 annot_padded[idx, :len(annot), 4] = lab
-    return (torch.stack(imgs, 0), torch.FloatTensor(annot_padded))
+    return (torch.stack(imgs, 0),
+            torch.FloatTensor(annot_padded),
+            torch.FloatTensor(scales))
 
 
 def collater(data):
+    data = [x for x in data if x is not None]
     imgs = [s['img'] for s in data]
     annots = [s['annot'] for s in data]
     scales = [s['scale'] for s in data]
+    try:
+        imgs = torch.from_numpy(np.stack(imgs, axis=0))
+    except ValueError:
+        import pdb; pdb.set_trace()
 
-    imgs = torch.from_numpy(np.stack(imgs, axis=0))
 
     max_num_annots = max(annot.shape[0] for annot in annots)
 
@@ -88,7 +96,8 @@ def collater(data):
 
     imgs = imgs.permute(0, 3, 1, 2)
 
-    return (imgs, torch.FloatTensor(annot_padded))
+    return (imgs, torch.FloatTensor(annot_padded),
+            torch.FloatTensor(scales))
 
 
 class Resizer(object):
@@ -108,11 +117,13 @@ class Resizer(object):
 
         image = cv2.resize(image, (resized_width, resized_height))
 
-        new_image = np.zeros((common_size, common_size, 3))
+        new_image = np.zeros((common_size, common_size, 3), np.float32)
         new_image[0:resized_height, 0:resized_width] = image
         annots[:, :4] *= scale
 
-        return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': scale}
+        return {'img': torch.from_numpy(new_image),
+                'annot': torch.from_numpy(annots),
+                'scale': scale}
 
 
 class Augmenter(object):
@@ -147,4 +158,5 @@ class Normalizer(object):
     def __call__(self, sample):
         image, annots = sample['img'], sample['annot']
 
-        return {'img': ((image.astype(np.float32) - self.mean) / self.std), 'annot': annots}
+        # 1/255. = 0.00392156862745098
+        return {'img': ((image.astype(np.float32) *0.00392156862745098 - self.mean) / self.std), 'annot': annots}

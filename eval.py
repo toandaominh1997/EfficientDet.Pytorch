@@ -73,7 +73,8 @@ def _compute_ap(recall, precision):
     return ap
 
 
-def _get_detections(dataset, retinanet, score_threshold=0.05, max_detections=100, save_path=None):
+def _get_detections(dataloader, retinanet,
+                    score_threshold=0.05, max_detections=100, save_path=None):
     """ Get the detections from the retinanet using the generator.
     The result is a list of lists such that the size is:
         all_detections[num_images][num_classes] = detections[num_detections, 4 + num_classes]
@@ -86,52 +87,55 @@ def _get_detections(dataset, retinanet, score_threshold=0.05, max_detections=100
     # Returns
         A list of lists containing the detections for each image in the generator.
     """
-    all_detections = [[None for i in range(
-        dataset.num_classes())] for j in range(len(dataset))]
+    dataset = dataloader.dataset
+    all_detections = [[None for i in range(dataset.num_classes())]
+                      for j in range(len(dataset))]
 
     retinanet.eval()
-
+    index = 0
     with torch.no_grad():
+        for idx, data in tqdm(enumerate(dataloader), total=len(dataloader)):
+            images = data[0].cuda()
+            scores_batch, labels_batch, boxes_batch = retinanet(images)
 
-        for index in range(len(dataset)):
-            data = dataset[index]
-            scale = data['scale']
+            scores_batch = scores_batch.reshape(images.shape[0], -1)
+            labels_batch = labels_batch.reshape(images.shape[0], -1)
+            boxes_batch = boxes_batch.reshape(images.shape[0], -1, 4)
+            for scores, labels, boxes, scale in zip(scores_batch,
+                                                    labels_batch,
+                                                    boxes_batch, data[2]):
 
-            # run network
-            scores, labels, boxes = retinanet(data['img'].permute(
-                2, 0, 1).cuda().float().unsqueeze(dim=0))
-            scores = scores.cpu().numpy()
-            labels = labels.cpu().numpy()
-            boxes = boxes.cpu().numpy()
+                scores = scores.cpu().numpy()
+                labels = labels.cpu().numpy()
+                boxes = boxes.cpu().numpy()
 
-            # correct boxes for image scale
-            boxes /= scale
+                # correct boxes for image scale
+                boxes /= scale
 
-            # select indices which have a score above the threshold
-            indices = np.where(scores > score_threshold)[0]
-            if indices.shape[0] > 0:
-                # select those scores
-                scores = scores[indices]
+                # select indices which have a score above the threshold
+                indices = np.where(scores > score_threshold)[0]
+                if indices.shape[0] > 0:
+                    # select those scores
+                    scores = scores[indices]
 
-                # find the order with which to sort the scores
-                scores_sort = np.argsort(-scores)[:max_detections]
+                    # find the order with which to sort the scores
+                    scores_sort = np.argsort(-scores)[:max_detections]
 
-                # select detections
-                image_boxes = boxes[indices[scores_sort], :]
-                image_scores = scores[scores_sort]
-                image_labels = labels[indices[scores_sort]]
-                image_detections = np.concatenate([image_boxes, np.expand_dims(
-                    image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
+                    # select detections
+                    image_boxes = boxes[indices[scores_sort], :]
+                    image_scores = scores[scores_sort]
+                    image_labels = labels[indices[scores_sort]]
+                    image_detections = np.concatenate([image_boxes, np.expand_dims(
+                        image_scores, axis=1), np.expand_dims(image_labels, axis=1)], axis=1)
 
-                # copy detections to all_detections
-                for label in range(dataset.num_classes()):
-                    all_detections[index][label] = image_detections[image_detections[:, -1] == label, :-1]
-            else:
-                # copy detections to all_detections
-                for label in range(dataset.num_classes()):
-                    all_detections[index][label] = np.zeros((0, 5))
-
-            print('{}/{}'.format(index + 1, len(dataset)), end='\r')
+                    # copy detections to all_detections
+                    for label in range(dataset.num_classes()):
+                        all_detections[index][label] = image_detections[image_detections[:, -1] == label, :-1]
+                else:
+                    # copy detections to all_detections
+                    for label in range(dataset.num_classes()):
+                        all_detections[index][label] = np.zeros((0, 5))
+                index += 1
 
     return all_detections
 
@@ -146,18 +150,18 @@ def _get_annotations(generator):
         A list of lists containing the annotations for each image in the generator.
     """
     all_annotations = [[None for i in range(
-        generator.num_classes())] for j in range(len(generator))]
+        generator.dataset.num_classes())] for j in range(len(generator.dataset))]
 
-    for i in range(len(generator)):
+    for i in range(len(generator.dataset)):
         # load the annotations
-        annotations = generator.load_annotations(i)
+        annotations = generator.dataset.load_annotations(i)
 
         # copy detections to all_annotations
-        for label in range(generator.num_classes()):
+        for label in range(generator.dataset.num_classes()):
             all_annotations[i][label] = annotations[annotations[:, 4]
                                                     == label, :4].copy()
 
-        print('{}/{}'.format(i + 1, len(generator)), end='\r')
+        print('{}/{}'.format(i + 1, len(generator.dataset)), end='\r')
 
     return all_annotations
 
@@ -190,13 +194,13 @@ def evaluate(
 
     average_precisions = {}
 
-    for label in range(generator.num_classes()):
+    for label in range(generator.dataset.num_classes()):
         false_positives = np.zeros((0,))
         true_positives = np.zeros((0,))
         scores = np.zeros((0,))
         num_annotations = 0.0
 
-        for i in range(len(generator)):
+        for i in range(len(generator.dataset)):
             detections = all_detections[i][label]
             annotations = all_annotations[i][label]
             num_annotations += annotations.shape[0]
@@ -249,72 +253,66 @@ def evaluate(
 
     print('\nmAP:')
     avg_mAP = []
-    for label in range(generator.num_classes()):
-        label_name = generator.label_to_name(label)
+    for label in range(generator.dataset.num_classes()):
+        label_name = generator.dataset.label_to_name(label)
         print('{}: {}'.format(label_name, average_precisions[label][0]))
         avg_mAP.append(average_precisions[label][0])
     print('avg mAP: {}'.format(np.mean(avg_mAP)))
     return np.mean(avg_mAP), average_precisions
 
 
-def evaluate_coco(dataset, model, threshold=0.05):
+def evaluate_coco(dataloader, model, threshold=0.05):
 
     model.eval()
+
+    dataset = dataloader.dataset
 
     with torch.no_grad():
 
         # start collecting results
         results = []
         image_ids = []
+        index = 0
 
-        for index in range(len(dataset)):
-            data = dataset[index]
-            scale = data['scale']
-
+        for data in tqdm(dataloader, total=len(dataloader)):
+            images = data[0]
             # run network
-            scores, labels, boxes = model(data['img'].permute(
-                2, 0, 1).cuda().float().unsqueeze(dim=0))
-            scores = scores.cpu()
-            labels = labels.cpu()
-            boxes = boxes.cpu()
+            scores_batch, labels_batch, boxes_batch = model(images)
 
-            # correct boxes for image scale
-            boxes /= scale
+            scores_batch = scores_batch.reshape(images.shape[0], -1)
+            labels_batch = labels_batch.reshape(images.shape[0], -1)
+            boxes_batch = boxes_batch.reshape(images.shape[0], -1, 4)
 
-            if boxes.shape[0] > 0:
-                # change to (x, y, w, h) (MS COCO standard)
-                boxes[:, 2] -= boxes[:, 0]
-                boxes[:, 3] -= boxes[:, 1]
+            for scores, labels, boxes, scale in zip(scores_batch,
+                                                    labels_batch,
+                                                    boxes_batch, data[2]):
+                scores = scores.cpu().numpy()
+                labels = labels.cpu().numpy()
+                boxes = boxes.cpu().numpy()
 
-                # compute predicted labels and scores
-                # for box, score, label in zip(boxes[0], scores[0], labels[0]):
-                for box_id in range(boxes.shape[0]):
-                    score = float(scores[box_id])
-                    label = int(labels[box_id])
-                    box = boxes[box_id, :]
+                # correct boxes for image scale
+                boxes /= scale
 
-                    # scores are sorted, so we can break
-                    if score < threshold:
-                        break
+                if boxes.shape[0] > 0:
+                    # change to (x, y, w, h) (MS COCO standard)
+                    boxes[:, 2] -= boxes[:, 0]
+                    boxes[:, 3] -= boxes[:, 1]
 
-                    # append detection for each positively labeled class
-                    image_result = {
-                        'image_id': dataset.image_ids[index],
-                        'category_id': dataset.label_to_coco_label(label),
-                        'score': float(score),
-                        'bbox': box.tolist(),
-                    }
+                    # compute predicted labels and scores
+                    # for box, score, label in zip(boxes[0], scores[0], labels[0]):
+                    boxes = boxes[scores >= threshold]
+                    labels = labels[scores >= threshold]
+                    scores = scores[scores >= threshold]
+                    results.extend([{"image_id": dataset.image_ids[index],
+                                     "category_id": dataset.label_to_coco_label(label),
+                                     "score": float(score),
+                                     "bbox": box.tolist()}
+                                    for box, score, label in zip(boxes, scores, labels)])
 
-                    # append detection to results
-                    results.append(image_result)
-
-            # append image to list of processed images
-            image_ids.append(dataset.image_ids[index])
-
-            # print progress
-            print('{}/{}'.format(index, len(dataset)), end='\r')
-
-        if not len(results):
+                # append image to list of processed images
+                image_ids.append(dataset.image_ids[index])
+                index += 1
+        if not results:
             return
 
         # write output

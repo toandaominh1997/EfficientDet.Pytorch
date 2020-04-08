@@ -3,8 +3,10 @@ import argparse
 import os
 import random
 import shutil
+from collections import OrderedDict
 import time
 import warnings
+import epdb
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -17,6 +19,8 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
+import pytorch_warmup as warmup
+
 import os
 import sys
 import time
@@ -27,11 +31,28 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 
+try:
+    from apex.parallel import DistributedDataParallel as DDP
+    from apex.fp16_utils import *
+    from apex import amp, optimizers
+    from apex.multi_tensor_apply import multi_tensor_applier
+except ImportError:
+    print("Please install apex from https://www.github.com/nvidia/apex to run this example.")
+
 from models.efficientdet import EfficientDet
 from models.losses import FocalLoss
 from datasets import VOCDetection, CocoDataset, get_augumentation, detection_collate, Resizer, Normalizer, Augmenter, collater
 from utils import EFFICIENTDET, get_state_dict
 from eval import evaluate, evaluate_coco
+
+from loader import PrefetchLoader
+from torch.utils.tensorboard import SummaryWriter
+
+
+breakpoint = epdb.set_trace
+
+writer = SummaryWriter()
+
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('--dataset', default='VOC', choices=['VOC', 'COCO'],
@@ -67,7 +88,7 @@ parser.add_argument('--save_folder', default='./saved/weights/', type=str,
                     help='Directory for saving checkpoint models')
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
-parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
+parser.add_argument('--start_epoch', default=-1, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('--world-size', default=1, type=int,
                     help='number of nodes for distributed training')
@@ -77,7 +98,7 @@ parser.add_argument('--dist-url', default='env://', type=str,
                     help='url used to set up distributed training')
 parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
-parser.add_argument('--seed', default=24, type=int,
+parser.add_argument('--seed', default=None, type=int,
                     help='seed for initializing training. ')
 parser.add_argument('--gpu', default=None, type=int,
                     help='GPU id to use.')
@@ -88,21 +109,35 @@ parser.add_argument(
     'N processes per node, which has N GPUs. This is the '
     'fastest way to use PyTorch for either single node or '
     'multi node data parallel training')
+parser.add_argument('--eval_epochs', default=5, type=int,
+                    help='after how many training epochs will do evaluation (default 5).')
+parser.add_argument('--freeze_backbone', action='store_true',
+                    help='freeze EfficientNet-d{x} backbone')
+parser.add_argument('--freeze_bn', action='store_true',
+                    help='freeze all batch norm layers')
+parser.add_argument('--mixed_training', action='store_true',
+                    help='Use AMP mixed training optimization O1')
+parser.add_argument('--eval', action='store_true',
+                    help='Perform evaluation')
 
 iteration = 1
 
 
-def train(train_loader, model, scheduler, optimizer, epoch, args):
+def train(train_loader, model, scheduler, warmup_scheduler, optimizer, epoch, args):
     global iteration
     print("{} epoch: \t start training....".format(epoch))
     start = time.time()
     total_loss = []
     model.train()
-    model.module.is_training = True
-    model.module.freeze_bn()
+    # model.module.is_training = True
+    # model.module.freeze_bn()
     optimizer.zero_grad()
-    for idx, (images, annotations) in enumerate(train_loader):
-        images = images.cuda().float()
+
+    prefetcher = PrefetchLoader(train_loader)
+
+    for idx, (images, annotations) in tqdm(enumerate(prefetcher),
+                                           total=len(prefetcher)):
+        images = images.float().cuda()
         annotations = annotations.cuda()
         classification_loss, regression_loss = model([images, annotations])
         classification_loss = classification_loss.mean()
@@ -111,15 +146,24 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
         if bool(loss == 0):
             print('loss equal zero(0)')
             continue
-        loss.backward()
+
+        if args.mixed_training:
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
+        else:
+            loss.backward()
+
         if (idx + 1) % args.grad_accumulation_steps == 0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
             optimizer.zero_grad()
+            # scheduler.step()
+            # if warmup_scheduler:
+            #     warmup_scheduler.dampen()
 
         total_loss.append(loss.item())
-        if(iteration % 300 == 0):
-            print('{} iteration: training ...'.format(iteration))
+        if (iteration % 100 == 0):
+            # print('{} iteration: training ...'.format(iteration))
             ans = {
                 'epoch': epoch,
                 'iteration': iteration,
@@ -129,8 +173,11 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
             }
             for key, value in ans.items():
                 print('    {:15s}: {}'.format(str(key), value))
+                if key != "epoch":
+                    writer.add_scalar(key, value, iteration)
         iteration += 1
-    scheduler.step(np.mean(total_loss))
+    scheduler.step(np.mean(total_loss))  # used for ReduceLROnPlateau
+
     result = {
         'time': time.time() - start,
         'loss': np.mean(total_loss)
@@ -139,16 +186,16 @@ def train(train_loader, model, scheduler, optimizer, epoch, args):
         print('    {:15s}: {}'.format(str(key), value))
 
 
-def test(dataset, model, epoch, args):
+def test(dataloader, model, epoch, args):
     print("{} epoch: \t start validation....".format(epoch))
-    model = model.module
+    # model = model.module
     model.eval()
-    model.is_training = False
+    # model.is_training = False
     with torch.no_grad():
         if(args.dataset == 'VOC'):
-            evaluate(dataset, model)
+            evaluate(dataloader, model)
         else:
-            evaluate_coco(dataset, model)
+            evaluate_coco(dataloader, model)
 
 
 def main_worker(gpu, ngpus_per_node, args):
@@ -171,29 +218,23 @@ def main_worker(gpu, ngpus_per_node, args):
             rank=args.rank)
 
     # Training dataset
+    data_augmenter = transforms.Compose([Normalizer(), Augmenter(), Resizer()])
+    data_augmenter = get_augumentation(phase="train")
+    inference_augmenter = transforms.Compose([Normalizer(), Resizer()])
     train_dataset = []
-    if(args.dataset == 'VOC'):
-        train_dataset = VOCDetection(root=args.dataset_root, transform=transforms.Compose(
-            [Normalizer(), Augmenter(), Resizer()]))
+    if (args.dataset == 'VOC'):
+        train_dataset = VOCDetection(root=args.dataset_root,
+                                     transform=data_augmenter)
         valid_dataset = VOCDetection(root=args.dataset_root, image_sets=[(
-            '2007', 'test')], transform=transforms.Compose([Normalizer(), Resizer()]))
+            '2007', 'test')], transform=inference_augmenter)
         args.num_class = train_dataset.num_classes()
-    elif(args.dataset == 'COCO'):
-        train_dataset = CocoDataset(
-            root_dir=args.dataset_root,
-            set_name='train2017',
-            transform=transforms.Compose(
-                [
-                    Normalizer(),
-                    Augmenter(),
-                    Resizer()]))
-        valid_dataset = CocoDataset(
-            root_dir=args.dataset_root,
-            set_name='val2017',
-            transform=transforms.Compose(
-                [
-                    Normalizer(),
-                    Resizer()]))
+    elif (args.dataset == 'COCO'):
+        train_dataset = CocoDataset(root_dir=args.dataset_root,
+                                    set_name='train2017',
+                                    transform=data_augmenter)
+        valid_dataset = CocoDataset(root_dir=args.dataset_root,
+                                    set_name='val2017',
+                                    transform=inference_augmenter)
         args.num_class = train_dataset.num_classes()
 
     train_loader = DataLoader(train_dataset,
@@ -203,7 +244,7 @@ def main_worker(gpu, ngpus_per_node, args):
                               collate_fn=collater,
                               pin_memory=True)
     valid_loader = DataLoader(valid_dataset,
-                              batch_size=1,
+                              batch_size=args.batch_size,
                               num_workers=args.workers,
                               shuffle=False,
                               collate_fn=collater,
@@ -222,8 +263,11 @@ def main_worker(gpu, ngpus_per_node, args):
         params = checkpoint['parser']
         args.num_class = params.num_class
         args.network = params.network
-        args.start_epoch = checkpoint['epoch'] + 1
+        if args.start_epoch == -1:
+            args.start_epoch = checkpoint['epoch'] + 1
         del params
+    if args.start_epoch == -1:
+        args.start_epoch = 0
 
     model = EfficientDet(num_classes=args.num_class,
                          network=args.network,
@@ -232,8 +276,25 @@ def main_worker(gpu, ngpus_per_node, args):
                          D_class=EFFICIENTDET[args.network]['D_class']
                          )
     if(args.resume is not None):
-        model.load_state_dict(checkpoint['state_dict'])
-    del checkpoint
+        tmp = OrderedDict()
+        for k, v in checkpoint['state_dict'].items():
+            k = k.replace("module.", "")
+            tmp[k] = v
+        model.load_state_dict(tmp)
+        del tmp
+
+    if args.freeze_backbone:
+        model.freeze_backbone()
+
+    if args.freeze_bn:
+        model.freeze_bn()
+
+    # define loss function (criterion) , optimizer, scheduler
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+                            lr=args.lr)
+    if args.resume is not None and "optimizer" in checkpoint:
+        optimizer.load_state_dict(checkpoint["optimizer"])
+
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
         # should always set the single device scope, otherwise,
@@ -260,35 +321,65 @@ def main_worker(gpu, ngpus_per_node, args):
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
     else:
-        model = model.cuda()
         print('Run with DataParallel ....')
-        model = torch.nn.DataParallel(model).cuda()
+        model = model.cuda()
 
-    # define loss function (criterion) , optimizer, scheduler
-    optimizer = optim.AdamW(model.parameters(), lr=args.lr)
+        # define loss function (criterion) , optimizer, scheduler
+        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+                            lr=args.lr)
+        if args.resume is not None and "optimizer" in checkpoint:
+            optimizer.load_state_dict(checkpoint["optimizer"])
+
+        if args.mixed_training:
+            model, optimizer = amp.initialize(model, optimizer,
+                                              opt_level="O1",
+                                              keep_batchnorm_fp32=None,
+                                              master_weights=None,
+                                              loss_scale=None)
+        model = torch.nn.DataParallel(model)
+
+    num_steps = len(train_loader) * args.num_epoch
+
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, patience=3, verbose=True)
+    # scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,
+    #                                                 T_max=num_steps)
+    if args.resume is not None and "scheduler" in checkpoint:
+        scheduler.load_state_dict(checkpoint["scheduler"])
+
+    # warmup_scheduler = warmup.UntunedLinearWarmup(optimizer)
+    warmup_scheduler = None
+
+    if args.resume is not None and "warmup_scheduler" in checkpoint:
+        scheduler.load_state_dict(checkpoint["warmup_scheduler"])
+    del checkpoint
+
     cudnn.benchmark = True
 
-    for epoch in range(args.start_epoch, args.num_epoch):
-        train(train_loader, model, scheduler, optimizer, epoch, args)
+    if args.eval:
+        test(valid_loader, model, epoch=0, args=args)
+    else:
+        for epoch in range(args.start_epoch, args.num_epoch):
+            train(train_loader, model, scheduler, warmup_scheduler,
+                  optimizer, epoch, args)
 
-        if (epoch + 1) % 5 == 0:
-            test(valid_dataset, model, epoch, args)
+            state = {
+                'epoch': epoch,
+                'parser': args,
+                'state_dict': get_state_dict(model),
+                'optimizer': optimizer.state_dict()
+            }
 
-        state = {
-            'epoch': epoch,
-            'parser': args,
-            'state_dict': get_state_dict(model)
-        }
+            torch.save(
+                state,
+                os.path.join(
+                    args.save_folder,
+                    args.dataset,
+                    args.network,
+                    "checkpoint_{}.pth".format(epoch)))
 
-        torch.save(
-            state,
-            os.path.join(
-                args.save_folder,
-                args.dataset,
-                args.network,
-                "checkpoint_{}.pth".format(epoch)))
+            if (epoch + 1) % args.eval_epochs == 0:
+                test(valid_loader, model, epoch, args)
 
 
 def main():

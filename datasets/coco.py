@@ -64,6 +64,7 @@ class CocoDataset(Dataset):
     def __getitem__(self, idx):
 
         img = self.load_image(idx)
+        image_size = img.shape[:2]
         annot = self.load_annotations(idx)
         sample = {'img': img, 'annot': annot}
         if self.transform:

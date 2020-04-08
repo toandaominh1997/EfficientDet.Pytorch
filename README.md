@@ -35,6 +35,12 @@ python demo.py --weight ./checkpoint_VOC_efficientdet-d1_97.pth --threshold 0.6 
 &nbsp;
 
 ## Recent Update
+ - [04/04/2020] VOC dataset training success.
+     ```Shell
+	nice -n1 python3.6 train.py --dataset VOC --dataset_root $VOC_PATH --network efficientdet-d0 --batch_size $BSIZE --workers 8 --grad_accumulation_steps 1 --lr 0.00001 --eval_epochs 20
+     ```
+     I set `lr=1e-5` because `1e-4` did not work
+ - [31/03/2020] ~~Make support for freezing backbone layers and batch norm layers. In addition, it supports to mixed precision training APEX opt method=O1.~~ [requires testing].
  - [06/01/2020] Support both DistributedDataParallel and DataParallel, change augmentation, eval_voc
  - [17/12/2019] Add Fast normalized fusion, Augmentation with Ratio, Change RetinaHead, Fix Support EfficientDet-D0->D7
  - [7/12/2019] Support EfficientDet-D0, EfficientDet-D1, EfficientDet-D2, EfficientDet-D3, EfficientDet-D4,... . Support change gradient accumulation steps, AdamW.
@@ -88,22 +94,22 @@ sh datasets/scripts/COCO2017.sh
 - To train EfficientDet using the train script simply specify the parameters listed in `train.py` as a flag or manually change them.
 
 ```Shell
-python train.py --network effcientdet-d0  # Example
+python train.py --network efficientdet-d0  # Example
 ```
 
   - With VOC Dataset:
   ```Shell
   # DataParallel
-  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network effcientdet-d0 --batch_size 32 
+  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network efficientdet-d0 --batch_size 32 
   # DistributedDataParallel with backend nccl
-  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network effcientdet-d0 --batch_size 32 --multiprocessing-distributed
+  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network efficientdet-d0 --batch_size 32 --multiprocessing-distributed
   ```
   - With COCO Dataset:
   ```Shell
   # DataParallel
-  python train.py --dataset COCO --dataset_root ~/data/coco/ --network effcientdet-d0 --batch_size 32
+  python train.py --dataset COCO --dataset_root ~/data/coco/ --network efficientdet-d0 --batch_size 32
   # DistributedDataParallel with backend nccl
-  python train.py --dataset COCO --dataset_root ~/data/coco/ --network effcientdet-d0 --batch_size 32 --multiprocessing-distributed
+  python train.py --dataset COCO --dataset_root ~/data/coco/ --network efficientdet-d0 --batch_size 32 --multiprocessing-distributed
   ```
 
 ## Evaluation
