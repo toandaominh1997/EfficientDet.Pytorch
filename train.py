@@ -218,30 +218,23 @@ def main_worker(gpu, ngpus_per_node, args):
             rank=args.rank)
 
     # Training dataset
+    data_augmenter = transforms.Compose([Normalizer(), Augmenter(), Resizer()])
+    data_augmenter = get_augumentation(phase="train")
+    inference_augmenter = transforms.Compose([Normalizer(), Resizer()])
     train_dataset = []
     if (args.dataset == 'VOC'):
         train_dataset = VOCDetection(root=args.dataset_root,
-                                     transform=transforms.Compose(
-                                         [Normalizer(), Augmenter(), Resizer()]))
+                                     transform=data_augmenter)
         valid_dataset = VOCDetection(root=args.dataset_root, image_sets=[(
-            '2007', 'test')], transform=transforms.Compose([Normalizer(), Resizer()]))
+            '2007', 'test')], transform=inference_augmenter)
         args.num_class = train_dataset.num_classes()
     elif (args.dataset == 'COCO'):
-        train_dataset = CocoDataset(
-            root_dir=args.dataset_root,
-            set_name='train2017',
-            transform=transforms.Compose(
-                [
-                    Normalizer(),
-                    Augmenter(),
-                    Resizer()]))
-        valid_dataset = CocoDataset(
-            root_dir=args.dataset_root,
-            set_name='val2017',
-            transform=transforms.Compose(
-                [
-                    Normalizer(),
-                    Resizer()]))
+        train_dataset = CocoDataset(root_dir=args.dataset_root,
+                                    set_name='train2017',
+                                    transform=data_augmenter)
+        valid_dataset = CocoDataset(root_dir=args.dataset_root,
+                                    set_name='val2017',
+                                    transform=inference_augmenter)
         args.num_class = train_dataset.num_classes()
 
     train_loader = DataLoader(train_dataset,
@@ -296,6 +289,12 @@ def main_worker(gpu, ngpus_per_node, args):
     if args.freeze_bn:
         model.freeze_bn()
 
+    # define loss function (criterion) , optimizer, scheduler
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+                            lr=args.lr)
+    if args.resume is not None and "optimizer" in checkpoint:
+        optimizer.load_state_dict(checkpoint["optimizer"])
+
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
         # should always set the single device scope, otherwise,
@@ -323,18 +322,21 @@ def main_worker(gpu, ngpus_per_node, args):
         model = model.cuda(args.gpu)
     else:
         print('Run with DataParallel ....')
-        model = torch.nn.DataParallel(model)
         model = model.cuda()
 
-    # define loss function (criterion) , optimizer, scheduler
-    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+        # define loss function (criterion) , optimizer, scheduler
+        optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
                             lr=args.lr)
-
-    if args.resume is not None and "optimizer" in checkpoint:
-        try:
+        if args.resume is not None and "optimizer" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer"])
-        except Exception as ex:
-            print("Optimizer load_state_dict error: {}".format(ex))
+
+        if args.mixed_training:
+            model, optimizer = amp.initialize(model, optimizer,
+                                              opt_level="O1",
+                                              keep_batchnorm_fp32=None,
+                                              master_weights=None,
+                                              loss_scale=None)
+        model = torch.nn.DataParallel(model)
 
     num_steps = len(train_loader) * args.num_epoch
 
@@ -344,11 +346,6 @@ def main_worker(gpu, ngpus_per_node, args):
     #                                                 T_max=num_steps)
     if args.resume is not None and "scheduler" in checkpoint:
         scheduler.load_state_dict(checkpoint["scheduler"])
-    if args.mixed_training:
-        model, optimizer = amp.initialize(model, optimizer,
-                                          opt_level="O1",
-                                          keep_batchnorm_fp32=None,
-                                          loss_scale=128)
 
     # warmup_scheduler = warmup.UntunedLinearWarmup(optimizer)
     warmup_scheduler = None

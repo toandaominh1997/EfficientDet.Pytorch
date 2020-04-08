@@ -16,8 +16,6 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
             albu.augmentations.transforms.RandomResizedCrop(
                 height=height,
                 width=width, p=0.3),
-            albu.augmentations.transforms.Flip(),
-            albu.augmentations.transforms.Transpose(),
             albu.OneOf([
                 albu.RandomBrightnessContrast(brightness_limit=0.5,
                                               contrast_limit=0.4),
@@ -33,7 +31,6 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
             ]),
             albu.CLAHE(p=0.8),
             albu.HorizontalFlip(p=0.5),
-            albu.VerticalFlip(p=0.5),
         ])
     if(phase == 'test' or phase == 'valid'):
         list_transforms.extend([
@@ -46,8 +43,11 @@ def get_augumentation(phase, width=512, height=512, min_area=0., min_visibility=
     ])
     if(phase == 'test'):
         return albu.Compose(list_transforms)
-    return albu.Compose(list_transforms, bbox_params=albu.BboxParams(format='pascal_voc', min_area=min_area,
-                                                                     min_visibility=min_visibility, label_fields=['category_id']))
+    return albu.Compose(list_transforms,
+                        bbox_params=albu.BboxParams(format='pascal_voc',
+                                                    min_area=min_area,
+                                                    min_visibility=min_visibility,
+                                                    label_fields=['category_id']))
 
 
 def detection_collate(batch):
@@ -75,8 +75,11 @@ def collater(data):
     imgs = [s['img'] for s in data]
     annots = [s['annot'] for s in data]
     scales = [s['scale'] for s in data]
+    try:
+        imgs = torch.from_numpy(np.stack(imgs, axis=0))
+    except ValueError:
+        import pdb; pdb.set_trace()
 
-    imgs = torch.from_numpy(np.stack(imgs, axis=0))
 
     max_num_annots = max(annot.shape[0] for annot in annots)
 
