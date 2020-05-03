@@ -88,22 +88,22 @@ sh datasets/scripts/COCO2017.sh
 - To train EfficientDet using the train script simply specify the parameters listed in `train.py` as a flag or manually change them.
 
 ```Shell
-python train.py --network effcientdet-d0  # Example
+python train.py --network efficientdet-d0  # Example
 ```
 
   - With VOC Dataset:
   ```Shell
   # DataParallel
-  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network effcientdet-d0 --batch_size 32 
+  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network efficientdet-d0 --batch_size 32 
   # DistributedDataParallel with backend nccl
-  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network effcientdet-d0 --batch_size 32 --multiprocessing-distributed
+  python train.py --dataset VOC --dataset_root /root/data/VOCdevkit/ --network efficientdet-d0 --batch_size 32 --multiprocessing-distributed
   ```
   - With COCO Dataset:
   ```Shell
   # DataParallel
-  python train.py --dataset COCO --dataset_root ~/data/coco/ --network effcientdet-d0 --batch_size 32
+  python train.py --dataset COCO --dataset_root ~/data/coco/ --network efficientdet-d0 --batch_size 32
   # DistributedDataParallel with backend nccl
-  python train.py --dataset COCO --dataset_root ~/data/coco/ --network effcientdet-d0 --batch_size 32 --multiprocessing-distributed
+  python train.py --dataset COCO --dataset_root ~/data/coco/ --network efficientdet-d0 --batch_size 32 --multiprocessing-distributed
   ```
 
 ## Evaluation
