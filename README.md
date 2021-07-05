@@ -46,7 +46,8 @@ We benchmark our code thoroughly on three datasets: pascal voc and coco, using f
 
 model    | mAP |
 ---------|--------|
-[EfficientDet-D0(with Weight)](https://drive.google.com/file/d/1r7MAyBfG5OK_9F_cU8yActUWxTHOuOpL/view?usp=sharing | 62.16
+[EfficientDet-D0(with Weight)](https://www.kaggle.com/kerneler/starter-efficientdet-model-d8ba73bf-a/data)| 62.16
+
 
 
 ## Installation
